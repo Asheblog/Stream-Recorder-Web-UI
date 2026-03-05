@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Recorder - 视频库</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-base: #0a0a0f;
+            --bg-surface: #12121a;
+            --bg-elevated: #1a1a25;
+            --bg-hover: #22222f;
+            --border: #2a2a3a;
+            --text-primary: #e8e8ed;
+            --text-secondary: #8888a0;
+            --text-tertiary: #5a5a70;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.1);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.1);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.1);
+            --info: #3b82f6;
+            --info-bg: rgba(59, 130, 246, 0.1);
+            --sidebar-width: 220px;
+            --header-height: 56px;
+        }
+
+        .light {
+            --bg-base: #f5f6fa;
+            --bg-surface: #ffffff;
+            --bg-elevated: #ffffff;
+            --bg-hover: #f0f1f5;
+            --border: #e2e4ea;
+            --text-primary: #1a1a2e;
+            --text-secondary: #6b7280;
+            --text-tertiary: #9ca3af;
+            --accent-glow: rgba(99, 102, 241, 0.08);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: background 0.3s;
+        }
+
+        .sidebar-brand {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-brand .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .sidebar-brand .name {
+            font-size: 15px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            position: relative;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 0 3px 3px 0;
+        }
+
+        .nav-icon {
+            font-size: 18px;
+            width: 22px;
+            text-align: center;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: var(--header-height);
+            background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            z-index: 50;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .header-stat .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        .theme-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Main */
+        .main {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            padding: 28px;
+            flex: 1;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .toolbar-left {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .toolbar-right {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .file-count {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            padding: 6px 12px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 7px 14px;
+        }
+
+        .search-box:focus-within {
+            border-color: var(--accent);
+        }
+
+        .search-box input {
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: 13px;
+            width: 200px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .view-toggle {
+            display: flex;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .view-btn {
+            padding: 7px 14px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s;
+        }
+
+        .view-btn.active {
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .view-btn:hover:not(.active) {
+            background: var(--bg-hover);
+        }
+
+        /* Grid View */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .video-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .video-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(99, 102, 241, 0.1);
+        }
+
+        .video-thumb {
+            width: 100%;
+            height: 150px;
+            position: relative;
+            background: linear-gradient(135deg, var(--bg-elevated), var(--bg-hover));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .video-thumb .format-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .format-mp4 {
+            background: rgba(99, 102, 241, 0.8);
+            color: #fff;
+        }
+
+        .format-mkv {
+            background: rgba(168, 85, 247, 0.8);
+            color: #fff;
+        }
+
+        .video-thumb .duration {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .video-thumb .resolution {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            background: rgba(34, 197, 94, 0.8);
+            color: #fff;
+        }
+
+        .video-thumb .play-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .video-card:hover .play-overlay {
+            opacity: 1;
+        }
+
+        .play-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: #fff;
+            transition: all 0.2s;
+        }
+
+        .play-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            transform: scale(1.1);
+        }
+
+        .video-thumb .wave-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            padding-bottom: 35px;
+            opacity: 0.3;
+        }
+
+        .wave-bar {
+            width: 4px;
+            border-radius: 2px;
+            background: var(--accent);
+            animation: wave 1.2s ease-in-out infinite;
+        }
+
+        .wave-bar:nth-child(1) {
+            height: 30px;
+            animation-delay: 0s;
+        }
+
+        .wave-bar:nth-child(2) {
+            height: 50px;
+            animation-delay: 0.1s;
+        }
+
+        .wave-bar:nth-child(3) {
+            height: 35px;
+            animation-delay: 0.2s;
+        }
+
+        .wave-bar:nth-child(4) {
+            height: 60px;
+            animation-delay: 0.15s;
+        }
+
+        .wave-bar:nth-child(5) {
+            height: 40px;
+            animation-delay: 0.3s;
+        }
+
+        .wave-bar:nth-child(6) {
+            height: 55px;
+            animation-delay: 0.1s;
+        }
+
+        .wave-bar:nth-child(7) {
+            height: 25px;
+            animation-delay: 0.25s;
+        }
+
+        .wave-bar:nth-child(8) {
+            height: 48px;
+            animation-delay: 0.05s;
+        }
+
+        .wave-bar:nth-child(9) {
+            height: 32px;
+            animation-delay: 0.35s;
+        }
+
+        .wave-bar:nth-child(10) {
+            height: 45px;
+            animation-delay: 0.2s;
+        }
+
+        @keyframes wave {
+
+            0%,
+            100% {
+                transform: scaleY(0.5);
+            }
+
+            50% {
+                transform: scaleY(1);
+            }
+        }
+
+        .video-info {
+            padding: 14px 16px;
+        }
+
+        .video-info .name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .video-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .video-meta .size {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .video-actions {
+            display: flex;
+            gap: 4px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .vid-action {
+            flex: 1;
+            padding: 6px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .vid-action:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-glow);
+        }
+
+        .vid-action.danger:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: var(--danger-bg);
+        }
+
+        /* List View */
+        .video-list {
+            display: none;
+        }
+
+        .video-list.active {
+            display: block;
+        }
+
+        .video-grid.active {
+            display: grid;
+        }
+
+        .card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .list-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .list-table th {
+            text-align: left;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-elevated);
+        }
+
+        .list-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        .list-table tr:hover td {
+            background: var(--bg-hover);
+        }
+
+        .list-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .list-table .file-icon {
+            font-size: 20px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        .list-table .mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .action-btn-sm {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: transparent;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-secondary);
+            transition: all 0.15s;
+            margin-right: 4px;
+        }
+
+        .action-btn-sm:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-glow);
+        }
+
+        .action-btn-sm.danger:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: var(--danger-bg);
+        }
+
+        /* Player Modal */
+        .player-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+        }
+
+        .player-overlay.show {
+            display: flex;
+        }
+
+        .player-container {
+            width: 80%;
+            max-width: 900px;
+            border-radius: 12px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 32px 100px rgba(0, 0, 0, 0.5);
+        }
+
+        .player-video {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-tertiary);
+            font-size: 48px;
+        }
+
+        .player-info {
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--bg-surface);
+        }
+
+        .player-info .title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .player-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.15s;
+        }
+
+        .player-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Storage bar bottom */
+        .storage-bar-bottom {
+            position: fixed;
+            bottom: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: 4px;
+            background: var(--border);
+            z-index: 50;
+        }
+
+        .storage-bar-bottom .fill {
+            height: 100%;
+            width: 62%;
+            background: linear-gradient(90deg, var(--accent), #a855f7);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo">SR</div>
+            <span class="name">Stream Recorder</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a class="nav-item" href="dashboard.html"><span class="nav-icon">📊</span> 仪表盘</a>
+            <a class="nav-item" href="task-management.html"><span class="nav-icon">📥</span> 录制任务</a>
+            <a class="nav-item active" href="video-library.html"><span class="nav-icon">🎬</span> 视频库</a>
+            <a class="nav-item" href="settings.html"><span class="nav-icon">⚙️</span> 系统设置</a>
+        </nav>
+    </aside>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-title">视频库</div>
+        <div class="header-right">
+            <div class="header-stat"><span class="dot" style="background:var(--success)"></span>CPU 23%</div>
+            <div class="header-stat"><span class="dot" style="background:var(--info)"></span>RAM 4.2 / 8 GB</div>
+            <div class="header-stat"><span class="dot" style="background:var(--accent)"></span>↓ 35.8 MB/s</div>
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="toolbar-left">
+                <span class="file-count">📁 128 个视频文件 · 总计 456 GB</span>
+            </div>
+            <div class="toolbar-right">
+                <div class="search-box">
+                    <span style="color:var(--text-tertiary)">🔍</span>
+                    <input type="text" placeholder="搜索文件名...">
+                </div>
+                <div class="view-toggle">
+                    <button class="view-btn active" onclick="setView('grid')" id="gridBtn">⊞</button>
+                    <button class="view-btn" onclick="setView('list')" id="listBtn">☰</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Grid View -->
+        <div class="video-grid active" id="gridView">
+            <!-- Card 1 -->
+            <div class="video-card" onclick="showPlayer('电影_变形金刚_4K')">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mp4">MP4</span>
+                    <span class="resolution">4K</span>
+                    <span class="duration">2:28:15</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">电影_变形金刚_4K_HDR</div>
+                    <div class="video-meta">
+                        <span class="size">6.8 GB</span>
+                        <span>2026-03-04 22:30</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 2 -->
+            <div class="video-card" onclick="showPlayer('纪录片_宇宙探索_01')">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mkv">MKV</span>
+                    <span class="resolution">1080P</span>
+                    <span class="duration">1:35:42</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">纪录片_宇宙探索_第一集</div>
+                    <div class="video-meta">
+                        <span class="size">1.8 GB</span>
+                        <span>2026-03-04 18:15</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 3 -->
+            <div class="video-card">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mp4">MP4</span>
+                    <span class="resolution">720P</span>
+                    <span class="duration">0:04:32</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">音乐MV_热门合集_2026</div>
+                    <div class="video-meta">
+                        <span class="size">456 MB</span>
+                        <span>2026-03-03 14:20</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 4 -->
+            <div class="video-card">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mp4">MP4</span>
+                    <span class="resolution">1080P</span>
+                    <span class="duration">3:12:08</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">电影_星际穿越_1080P</div>
+                    <div class="video-meta">
+                        <span class="size">3.6 GB</span>
+                        <span>2026-03-02 20:30</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 5 -->
+            <div class="video-card">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mkv">MKV</span>
+                    <span class="resolution">4K</span>
+                    <span class="duration">0:52:16</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">纪录片_蓝色星球_S02E01</div>
+                    <div class="video-meta">
+                        <span class="size">4.2 GB</span>
+                        <span>2026-03-01 16:45</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 6 -->
+            <div class="video-card">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mp4">MP4</span>
+                    <span class="resolution">1080P</span>
+                    <span class="duration">1:45:30</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">直播回放_电竞比赛_总决赛</div>
+                    <div class="video-meta">
+                        <span class="size">2.1 GB</span>
+                        <span>2026-02-28 22:00</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 7 -->
+            <div class="video-card">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mp4">MP4</span>
+                    <span class="resolution">720P</span>
+                    <span class="duration">0:45:12</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">教学视频_React从零到一</div>
+                    <div class="video-meta">
+                        <span class="size">890 MB</span>
+                        <span>2026-02-27 10:30</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Card 8 -->
+            <div class="video-card">
+                <div class="video-thumb">
+                    <div class="wave-bg">
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                        <div class="wave-bar"></div>
+                    </div>
+                    <span class="format-badge format-mkv">MKV</span>
+                    <span class="resolution">1080P</span>
+                    <span class="duration">0:23:45</span>
+                    <div class="play-overlay">
+                        <div class="play-btn">▶</div>
+                    </div>
+                </div>
+                <div class="video-info">
+                    <div class="name">综艺_周末大乐透_最新期</div>
+                    <div class="video-meta">
+                        <span class="size">1.2 GB</span>
+                        <span>2026-02-25 19:00</span>
+                    </div>
+                    <div class="video-actions">
+                        <button class="vid-action">▶ 播放</button>
+                        <button class="vid-action">⬇ 下载</button>
+                        <button class="vid-action">📋 路径</button>
+                        <button class="vid-action danger">🗑</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- List View -->
+        <div class="video-list card" id="listView">
+            <table class="list-table">
+                <thead>
+                    <tr>
+                        <th>文件名</th>
+                        <th>格式</th>
+                        <th>分辨率</th>
+                        <th>大小</th>
+                        <th>时长</th>
+                        <th>完成时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="file-icon">🎬</span>电影_变形金刚_4K_HDR</td>
+                        <td><span class="format-badge format-mp4" style="font-size:10px; padding:2px 6px">MP4</span>
+                        </td>
+                        <td class="mono">3840×2160</td>
+                        <td class="mono">6.8 GB</td>
+                        <td class="mono">2:28:15</td>
+                        <td class="mono">2026-03-04 22:30</td>
+                        <td>
+                            <button class="action-btn-sm" title="播放">▶</button>
+                            <button class="action-btn-sm" title="下载">⬇</button>
+                            <button class="action-btn-sm" title="复制路径">📋</button>
+                            <button class="action-btn-sm danger" title="删除">🗑</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="file-icon">🎬</span>纪录片_宇宙探索_第一集</td>
+                        <td><span class="format-badge format-mkv" style="font-size:10px; padding:2px 6px">MKV</span>
+                        </td>
+                        <td class="mono">1920×1080</td>
+                        <td class="mono">1.8 GB</td>
+                        <td class="mono">1:35:42</td>
+                        <td class="mono">2026-03-04 18:15</td>
+                        <td>
+                            <button class="action-btn-sm" title="播放">▶</button>
+                            <button class="action-btn-sm" title="下载">⬇</button>
+                            <button class="action-btn-sm" title="复制路径">📋</button>
+                            <button class="action-btn-sm danger" title="删除">🗑</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><span class="file-icon">🎬</span>音乐MV_热门合集_2026</td>
+                        <td><span class="format-badge format-mp4" style="font-size:10px; padding:2px 6px">MP4</span>
+                        </td>
+                        <td class="mono">1280×720</td>
+                        <td class="mono">456 MB</td>
+                        <td class="mono">0:04:32</td>
+                        <td class="mono">2026-03-03 14:20</td>
+                        <td>
+                            <button class="action-btn-sm" title="播放">▶</button>
+                            <button class="action-btn-sm" title="下载">⬇</button>
+                            <button class="action-btn-sm" title="复制路径">📋</button>
+                            <button class="action-btn-sm danger" title="删除">🗑</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Player Modal -->
+    <div class="player-overlay" id="player">
+        <button class="player-close" onclick="hidePlayer()">✕</button>
+        <div class="player-container">
+            <div class="player-video">▶</div>
+            <div class="player-info">
+                <span class="title" id="playerTitle">--</span>
+                <span
+                    style="font-size:12px; color:var(--text-tertiary); font-family:'JetBrains Mono',monospace">1920×1080
+                    · MP4</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Storage indicator bar -->
+    <div class="storage-bar-bottom">
+        <div class="fill"></div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle('light');
+            document.getElementById('themeBtn').textContent = document.body.classList.contains('light') ? '☀️' : '🌙';
+        }
+        function setView(mode) {
+            const grid = document.getElementById('gridView');
+            const list = document.getElementById('listView');
+            const gridBtn = document.getElementById('gridBtn');
+            const listBtn = document.getElementById('listBtn');
+            if (mode === 'grid') {
+                grid.style.display = 'grid'; list.style.display = 'none';
+                gridBtn.classList.add('active'); listBtn.classList.remove('active');
+            } else {
+                grid.style.display = 'none'; list.style.display = 'block';
+                listBtn.classList.add('active'); gridBtn.classList.remove('active');
+            }
+        }
+        function showPlayer(name) {
+            document.getElementById('player').classList.add('show');
+            document.getElementById('playerTitle').textContent = name || '未命名视频';
+        }
+        function hidePlayer() { document.getElementById('player').classList.remove('show'); }
+        document.getElementById('player').addEventListener('click', function (e) {
+            if (e.target === this) hidePlayer();
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Recorder - 系统设置</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-base: #0a0a0f;
+            --bg-surface: #12121a;
+            --bg-elevated: #1a1a25;
+            --bg-hover: #22222f;
+            --border: #2a2a3a;
+            --text-primary: #e8e8ed;
+            --text-secondary: #8888a0;
+            --text-tertiary: #5a5a70;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.1);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.1);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.1);
+            --info: #3b82f6;
+            --info-bg: rgba(59, 130, 246, 0.1);
+            --sidebar-width: 220px;
+            --header-height: 56px;
+        }
+
+        .light {
+            --bg-base: #f5f6fa;
+            --bg-surface: #ffffff;
+            --bg-elevated: #f8f9fc;
+            --bg-hover: #f0f1f5;
+            --border: #e2e4ea;
+            --text-primary: #1a1a2e;
+            --text-secondary: #6b7280;
+            --text-tertiary: #9ca3af;
+            --accent-glow: rgba(99, 102, 241, 0.08);
+            --success-bg: rgba(34, 197, 94, 0.06);
+            --warning-bg: rgba(245, 158, 11, 0.06);
+            --danger-bg: rgba(239, 68, 68, 0.06);
+            --info-bg: rgba(59, 130, 246, 0.06);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: background 0.3s;
+        }
+
+        .sidebar-brand {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-brand .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .sidebar-brand .name {
+            font-size: 15px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 12px 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            position: relative;
+            margin-bottom: 2px;
+        }
+
+        .nav-item:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: var(--accent-glow);
+            color: var(--accent);
+        }
+
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 20px;
+            background: var(--accent);
+            border-radius: 0 3px 3px 0;
+        }
+
+        .nav-icon {
+            font-size: 18px;
+            width: 22px;
+            text-align: center;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            height: var(--header-height);
+            background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 28px;
+            z-index: 50;
+        }
+
+        .header-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-stat {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .header-stat .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+
+            0%,
+            100% {
+                opacity: 1
+            }
+
+            50% {
+                opacity: 0.4
+            }
+        }
+
+        .theme-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* Main */
+        .main {
+            margin-left: var(--sidebar-width);
+            margin-top: var(--header-height);
+            padding: 28px;
+            flex: 1;
+            max-width: 800px;
+        }
+
+        /* Settings Sections */
+        .settings-section {
+            margin-bottom: 24px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .section-header .icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .section-header .icon.engine {
+            background: var(--accent-glow);
+        }
+
+        .section-header .icon.storage {
+            background: var(--success-bg);
+        }
+
+        .section-header .icon.task {
+            background: var(--info-bg);
+        }
+
+        .section-header .icon.about {
+            background: var(--warning-bg);
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .section-desc {
+            font-size: 12px;
+            color: var(--text-tertiary);
+        }
+
+        .settings-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: background 0.3s, border 0.3s;
+        }
+
+        .setting-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            gap: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .setting-row:last-child {
+            border-bottom: none;
+        }
+
+        .setting-row:hover {
+            background: var(--bg-hover);
+        }
+
+        .setting-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .setting-label {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .setting-hint {
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .form-input {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            font-size: 12px;
+            outline: none;
+            transition: border 0.2s;
+            font-family: 'JetBrains Mono', monospace;
+            width: 320px;
+        }
+
+        .form-input:focus {
+            border-color: var(--accent);
+        }
+
+        .form-input.short {
+            width: 80px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .form-input.medium {
+            width: 200px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+            border: 1px solid transparent;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-success {
+            background: var(--success-bg);
+            color: var(--success);
+            border-color: transparent;
+        }
+
+        .btn-test {
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            border-color: var(--border);
+            padding: 7px 12px;
+        }
+
+        .btn-test:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .switch {
+            width: 44px;
+            height: 24px;
+            border-radius: 12px;
+            background: var(--border);
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+
+        .switch.on {
+            background: var(--accent);
+        }
+
+        .switch::after {
+            content: '';
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #fff;
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            transition: transform 0.2s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .switch.on::after {
+            transform: translateX(20px);
+        }
+
+        /* Status indicator */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        .status-ok {
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
+        }
+
+        .status-err {
+            background: var(--danger);
+            box-shadow: 0 0 6px var(--danger);
+        }
+
+        .test-result {
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            display: none;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .test-result.show {
+            display: inline-flex;
+        }
+
+        .test-result.ok {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .test-result.err {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        /* Save bar */
+        .save-bar {
+            position: fixed;
+            bottom: 0;
+            left: var(--sidebar-width);
+            right: 0;
+            padding: 14px 28px;
+            background: var(--bg-surface);
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transform: translateY(0);
+            transition: transform 0.3s;
+            backdrop-filter: blur(12px);
+            z-index: 50;
+        }
+
+        .save-bar .hint {
+            font-size: 13px;
+            color: var(--warning);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .save-bar .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* About info */
+        .about-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding: 16px 20px;
+        }
+
+        .about-item {}
+
+        .about-item .label {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .about-item .value {
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .about-item .value a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .about-item .value a:hover {
+            text-decoration: underline;
+        }
+
+        /* Version badge */
+        .version-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            background: var(--accent-glow);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo">SR</div>
+            <span class="name">Stream Recorder</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a class="nav-item" href="dashboard.html"><span class="nav-icon">📊</span> 仪表盘</a>
+            <a class="nav-item" href="task-management.html"><span class="nav-icon">📥</span> 录制任务</a>
+            <a class="nav-item" href="video-library.html"><span class="nav-icon">🎬</span> 视频库</a>
+            <a class="nav-item active" href="settings.html"><span class="nav-icon">⚙️</span> 系统设置</a>
+        </nav>
+    </aside>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-title">系统设置</div>
+        <div class="header-right">
+            <div class="header-stat"><span class="dot" style="background:var(--success)"></span>CPU 23%</div>
+            <div class="header-stat"><span class="dot" style="background:var(--info)"></span>RAM 4.2 / 8 GB</div>
+            <div class="header-stat"><span class="dot" style="background:var(--accent)"></span>↓ 35.8 MB/s</div>
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
+        </div>
+    </header>
+
+    <!-- Main -->
+    <main class="main">
+        <!-- Engine Config -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="icon engine">🔧</div>
+                <div>
+                    <div class="section-title">引擎配置</div>
+                    <div class="section-desc">设定录制引擎和混流工具的路径</div>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">N_m3u8DL-RE 路径</div>
+                        <div class="setting-hint">流媒体下载引擎的可执行文件绝对路径</div>
+                    </div>
+                    <div class="setting-control">
+                        <input class="form-input" value="/usr/local/bin/N_m3u8DL-RE">
+                        <button class="btn btn-test" onclick="testPath(this, true)">测试</button>
+                        <span class="test-result ok" id="test1">✓ 可用 v0.2.1</span>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">FFmpeg 路径</div>
+                        <div class="setting-hint">视频混流与转码工具的绝对路径</div>
+                    </div>
+                    <div class="setting-control">
+                        <input class="form-input" value="/usr/bin/ffmpeg">
+                        <button class="btn btn-test" onclick="testPath(this, true)">测试</button>
+                        <span class="test-result ok" id="test2">✓ 可用 v6.1</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Storage Config -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="icon storage">💾</div>
+                <div>
+                    <div class="section-title">存储配置</div>
+                    <div class="section-desc">设定视频文件的默认存储位置</div>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">默认保存目录</div>
+                        <div class="setting-hint">所有录制视频的根保存路径，任务可单独覆盖</div>
+                    </div>
+                    <div class="setting-control">
+                        <input class="form-input" value="/data/videos">
+                        <button class="btn btn-test">浏览</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">临时文件目录</div>
+                        <div class="setting-hint">下载切片和中间文件的临时存储路径</div>
+                    </div>
+                    <div class="setting-control">
+                        <input class="form-input" value="/data/tmp">
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">自动清理临时文件</div>
+                        <div class="setting-hint">任务完成后自动删除中间切片文件，释放磁盘空间</div>
+                    </div>
+                    <div class="setting-control">
+                        <div class="switch on" onclick="this.classList.toggle('on')"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Task Config -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="icon task">📋</div>
+                <div>
+                    <div class="section-title">任务配置</div>
+                    <div class="section-desc">全局任务执行参数和并发控制</div>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">最大并发任务数</div>
+                        <div class="setting-hint">同时运行的最大录制任务数量，超出部分自动排队</div>
+                    </div>
+                    <div class="setting-control">
+                        <button class="btn btn-test" onclick="adjustValue('concurrent', -1)">−</button>
+                        <input class="form-input short" id="concurrent" value="3" type="number" min="1" max="10">
+                        <button class="btn btn-test" onclick="adjustValue('concurrent', 1)">＋</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">默认下载线程数</div>
+                        <div class="setting-hint">每个任务的下载并发线程数，可在单个任务中覆盖</div>
+                    </div>
+                    <div class="setting-control">
+                        <button class="btn btn-test" onclick="adjustValue('threads', -1)">−</button>
+                        <input class="form-input short" id="threads" value="16" type="number" min="1" max="128">
+                        <button class="btn btn-test" onclick="adjustValue('threads', 1)">＋</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">自动重试失败任务</div>
+                        <div class="setting-hint">当任务因网络等原因失败时，自动加入重试队列</div>
+                    </div>
+                    <div class="setting-control">
+                        <div class="switch" id="autoRetrySwitch" onclick="toggleAutoRetry()"></div>
+                    </div>
+                </div>
+                <div class="setting-row" id="retryCountRow" style="opacity: 0.4; pointer-events: none;">
+                    <div class="setting-info">
+                        <div class="setting-label">最大重试次数</div>
+                        <div class="setting-hint">单个任务允许的最大重试次数</div>
+                    </div>
+                    <div class="setting-control">
+                        <button class="btn btn-test" onclick="adjustValue('retries', -1)">−</button>
+                        <input class="form-input short" id="retries" value="3" type="number" min="1" max="10">
+                        <button class="btn btn-test" onclick="adjustValue('retries', 1)">＋</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-label">默认输出格式</div>
+                        <div class="setting-hint">录制完成后视频文件的默认封装格式</div>
+                    </div>
+                    <div class="setting-control">
+                        <select class="form-input medium"
+                            style="font-family: 'Inter', sans-serif; cursor: pointer; appearance: auto;">
+                            <option value="mp4" selected>MP4 (.mp4)</option>
+                            <option value="mkv">MKV (.mkv)</option>
+                            <option value="ts">TS (.ts) — 不转封装</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About -->
+        <div class="settings-section">
+            <div class="section-header">
+                <div class="icon about">ℹ️</div>
+                <div>
+                    <div class="section-title">关于</div>
+                    <div class="section-desc">系统信息与版本</div>
+                </div>
+            </div>
+            <div class="settings-card">
+                <div class="about-grid">
+                    <div class="about-item">
+                        <div class="label">应用版本</div>
+                        <div class="value"><span class="version-badge">v1.0.0</span></div>
+                    </div>
+                    <div class="about-item">
+                        <div class="label">引擎版本</div>
+                        <div class="value">N_m3u8DL-RE v0.2.1-beta</div>
+                    </div>
+                    <div class="about-item">
+                        <div class="label">Node.js</div>
+                        <div class="value">v20.11.1</div>
+                    </div>
+                    <div class="about-item">
+                        <div class="label">数据库</div>
+                        <div class="value">SQLite 3.45.0</div>
+                    </div>
+                    <div class="about-item">
+                        <div class="label">运行时间</div>
+                        <div class="value">3 天 12 小时</div>
+                    </div>
+                    <div class="about-item">
+                        <div class="label">项目主页</div>
+                        <div class="value"><a href="https://github.com/nilaoda/N_m3u8DL-RE" target="_blank">GitHub →</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spacer for save bar -->
+        <div style="height: 72px"></div>
+    </main>
+
+    <!-- Save Bar -->
+    <div class="save-bar">
+        <div class="hint">⚠️ 配置已修改，尚未保存</div>
+        <div class="actions">
+            <button class="btn btn-secondary">重置默认</button>
+            <button class="btn btn-primary" onclick="saveSettings()">💾 保存设置</button>
+        </div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle('light');
+            document.getElementById('themeBtn').textContent = document.body.classList.contains('light') ? '☀️' : '🌙';
+        }
+
+        function testPath(btn, success) {
+            const result = btn.nextElementSibling;
+            result.classList.add('show');
+            if (success) {
+                result.classList.remove('err');
+                result.classList.add('ok');
+            } else {
+                result.classList.remove('ok');
+                result.classList.add('err');
+                result.textContent = '✗ 文件不存在';
+            }
+            setTimeout(() => result.classList.remove('show'), 3000);
+        }
+
+        function adjustValue(id, delta) {
+            const input = document.getElementById(id);
+            let v = parseInt(input.value) + delta;
+            const min = parseInt(input.min) || 1;
+            const max = parseInt(input.max) || 128;
+            if (v < min) v = min;
+            if (v > max) v = max;
+            input.value = v;
+        }
+
+        function toggleAutoRetry() {
+            const sw = document.getElementById('autoRetrySwitch');
+            sw.classList.toggle('on');
+            const row = document.getElementById('retryCountRow');
+            if (sw.classList.contains('on')) {
+                row.style.opacity = '1';
+                row.style.pointerEvents = 'auto';
+            } else {
+                row.style.opacity = '0.4';
+                row.style.pointerEvents = 'none';
+            }
+        }
+
+        function saveSettings() {
+            const btn = event.target;
+            btn.textContent = '✓ 已保存';
+            btn.style.background = 'var(--success)';
+            setTimeout(() => {
+                btn.textContent = '💾 保存设置';
+                btn.style.background = '';
+            }, 2000);
+        }
+    </script>
+</body>
+
+</html>

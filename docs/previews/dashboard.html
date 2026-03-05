@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Recorder - 仪表盘</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-base: #0a0a0f;
+            --bg-surface: #12121a;
+            --bg-elevated: #1a1a25;
+            --bg-hover: #22222f;
+            --border: #2a2a3a;
+            --text-primary: #e8e8ed;
+            --text-secondary: #8888a0;
+            --text-tertiary: #5a5a70;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --success: #22c55e;
+            --success-bg: rgba(34, 197, 94, 0.1);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.1);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.1);
+            --info: #3b82f6;
+            --info-bg: rgba(59, 130, 246, 0.1);
+            --sidebar-width: 220px;
+            --header-height: 56px;
+        }
+
+        .light {
+            --bg-base: #f5f6fa;
+            --bg-surface: #ffffff;
+            --bg-elevated: #ffffff;
+            --bg-hover: #f0f1f5;
+            --border: #e2e4ea;
+            --text-primary: #1a1a2e;
+            --text-secondary: #6b7280;
+            --text-tertiary: #9ca3af;
+            --accent-glow: rgba(99, 102, 241, 0.08);
+            --success-bg: rgba(34, 197, 94, 0.08);
+            --warning-bg: rgba(245, 158, 11, 0.08);
+            --danger-bg: rgba(239, 68, 68, 0.08);
+            --info-bg: rgba(59, 130, 246, 0.08);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            z-index: 100;
+            transition: background 0.3s, border 0.3s;
+        }
+        .sidebar-brand {
+            height: var(--header-height);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-brand .logo {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; color: #fff; font-weight: 700;
+        }
+        .sidebar-brand .name {
+            font-size: 15px; font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), #a855f7);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .sidebar-nav { flex: 1; padding: 12px 8px; }
+        .nav-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 16px; border-radius: 8px;
+            color: var(--text-secondary); font-size: 14px; font-weight: 500;
+            cursor: pointer; transition: all 0.15s; text-decoration: none;
+            position: relative; margin-bottom: 2px;
+        }
+        .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .nav-item.active {
+            background: var(--accent-glow); color: var(--accent);
+        }
+        .nav-item.active::before {
+            content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+            width: 3px; height: 20px; background: var(--accent); border-radius: 0 3px 3px 0;
+        }
+        .nav-icon { font-size: 18px; width: 22px; text-align: center; }
+
+        /* ── Header ── */
+        .header {
+            position: fixed; top: 0; left: var(--sidebar-width); right: 0;
+            height: var(--header-height);
+            background: color-mix(in srgb, var(--bg-surface) 80%, transparent);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 28px; z-index: 50;
+            transition: background 0.3s, border 0.3s;
+        }
+        .header-title { font-size: 16px; font-weight: 600; }
+        .header-right { display: flex; align-items: center; gap: 20px; }
+        .header-stat {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 12px; color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .header-stat .dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .theme-toggle {
+            width: 36px; height: 36px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--bg-elevated);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 16px; transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+        .theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── Main Content ── */
+        .main {
+            margin-left: var(--sidebar-width); margin-top: var(--header-height);
+            padding: 28px; flex: 1; min-height: calc(100vh - var(--header-height));
+        }
+
+        /* ── Stats Cards ── */
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--bg-surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 20px; position: relative;
+            overflow: hidden; transition: all 0.2s;
+        }
+        .stat-card:hover { border-color: color-mix(in srgb, var(--border) 50%, var(--accent)); transform: translateY(-1px); }
+        .stat-card .stat-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; margin-bottom: 14px;
+        }
+        .stat-card .stat-label {
+            font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;
+            text-transform: uppercase; letter-spacing: 0.5px; font-weight: 500;
+        }
+        .stat-card .stat-value {
+            font-size: 30px; font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .stat-card .stat-trend {
+            font-size: 11px; margin-top: 8px; display: flex; align-items: center; gap: 4px;
+        }
+        .stat-card::after {
+            content: ''; position: absolute; top: 0; right: 0;
+            width: 120px; height: 120px; border-radius: 50%;
+            opacity: 0.06; transform: translate(30%, -30%);
+        }
+        .stat-card.running .stat-icon { background: var(--info-bg); color: var(--info); }
+        .stat-card.running .stat-value { color: var(--info); }
+        .stat-card.running::after { background: var(--info); }
+        .stat-card.queued .stat-icon { background: var(--warning-bg); color: var(--warning); }
+        .stat-card.queued .stat-value { color: var(--warning); }
+        .stat-card.queued::after { background: var(--warning); }
+        .stat-card.completed .stat-icon { background: var(--success-bg); color: var(--success); }
+        .stat-card.completed .stat-value { color: var(--success); }
+        .stat-card.completed::after { background: var(--success); }
+        .stat-card.failed .stat-icon { background: var(--danger-bg); color: var(--danger); }
+        .stat-card.failed .stat-value { color: var(--danger); }
+        .stat-card.failed::after { background: var(--danger); }
+
+        /* ── Monitor Section ── */
+        .monitor-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+            margin-bottom: 24px;
+        }
+        .card {
+            background: var(--bg-surface); border: 1px solid var(--border);
+            border-radius: 12px; padding: 20px; transition: background 0.3s, border 0.3s;
+        }
+        .card-title {
+            font-size: 14px; font-weight: 600; margin-bottom: 20px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .card-title .icon { font-size: 16px; }
+
+        /* System Load */
+        .gauge-row { display: flex; gap: 40px; justify-content: center; padding: 10px 0; }
+        .gauge { text-align: center; }
+        .gauge-circle {
+            width: 120px; height: 120px; border-radius: 50%;
+            position: relative; margin: 0 auto 12px;
+        }
+        .gauge-circle svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+        .gauge-circle .bg { fill: none; stroke: var(--border); stroke-width: 8; }
+        .gauge-circle .fg { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+        .gauge-value {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+        }
+        .gauge-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+
+        /* Storage */
+        .storage-info { margin-bottom: 16px; }
+        .storage-bar-bg {
+            width: 100%; height: 24px; background: var(--bg-elevated);
+            border-radius: 12px; overflow: hidden; margin: 16px 0;
+        }
+        .storage-bar-fill {
+            height: 100%; border-radius: 12px;
+            background: linear-gradient(90deg, var(--accent), #a855f7);
+            transition: width 1s ease; position: relative;
+        }
+        .storage-bar-fill::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            animation: shimmer 2s infinite;
+        }
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .storage-details {
+            display: flex; justify-content: space-between;
+            font-size: 13px; color: var(--text-secondary);
+        }
+        .storage-details span { font-family: 'JetBrains Mono', monospace; }
+        .storage-breakdown {
+            margin-top: 20px; display: flex; gap: 16px;
+        }
+        .storage-item {
+            flex: 1; background: var(--bg-elevated); border-radius: 8px;
+            padding: 12px; text-align: center;
+        }
+        .storage-item .label { font-size: 11px; color: var(--text-tertiary); margin-bottom: 4px; }
+        .storage-item .value { font-size: 16px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+        /* ── Recent Tasks ── */
+        .task-table {
+            width: 100%; border-collapse: separate; border-spacing: 0;
+        }
+        .task-table th {
+            text-align: left; font-size: 11px; font-weight: 600;
+            color: var(--text-tertiary); text-transform: uppercase;
+            letter-spacing: 0.5px; padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .task-table td {
+            padding: 14px 16px; border-bottom: 1px solid var(--border);
+            font-size: 13px; vertical-align: middle;
+        }
+        .task-table tr:hover td { background: var(--bg-hover); }
+        .task-table tr:last-child td { border-bottom: none; }
+
+        .task-name { font-weight: 500; }
+        .task-url { font-size: 11px; color: var(--text-tertiary); margin-top: 2px;
+            font-family: 'JetBrains Mono', monospace; max-width: 280px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 10px; border-radius: 16px; font-size: 11px;
+            font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .status-badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+        .status-downloading { background: var(--info-bg); color: var(--info); }
+        .status-downloading .dot { background: var(--info); animation: pulse-dot 1.5s infinite; }
+        .status-queued { background: var(--warning-bg); color: var(--warning); }
+        .status-queued .dot { background: var(--warning); }
+        .status-completed { background: var(--success-bg); color: var(--success); }
+        .status-completed .dot { background: var(--success); }
+        .status-error { background: var(--danger-bg); color: var(--danger); }
+        .status-error .dot { background: var(--danger); }
+        .status-merging { background: var(--accent-glow); color: var(--accent); }
+        .status-merging .dot { background: var(--accent); animation: pulse-dot 1s infinite; }
+
+        .progress-cell { min-width: 160px; }
+        .progress-bar-bg {
+            width: 100%; height: 6px; background: var(--bg-elevated);
+            border-radius: 3px; overflow: hidden; margin-bottom: 4px;
+        }
+        .progress-bar-fill {
+            height: 100%; border-radius: 3px; transition: width 0.5s ease;
+            position: relative;
+        }
+        .progress-bar-fill.downloading {
+            background: linear-gradient(90deg, var(--info), #60a5fa);
+        }
+        .progress-bar-fill.downloading::after {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+        .progress-bar-fill.completed { background: var(--success); }
+        .progress-bar-fill.merging { background: linear-gradient(90deg, var(--accent), #a855f7); }
+        .progress-bar-fill.error { background: var(--danger); }
+        .progress-text {
+            font-size: 11px; color: var(--text-tertiary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .speed-cell {
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .action-btn {
+            width: 30px; height: 30px; border-radius: 6px;
+            border: 1px solid var(--border); background: transparent;
+            display: inline-flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 13px; color: var(--text-secondary);
+            transition: all 0.15s; margin-right: 4px;
+        }
+        .action-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+        .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-brand">
+            <div class="logo">SR</div>
+            <span class="name">Stream Recorder</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a class="nav-item active" href="dashboard.html">
+                <span class="nav-icon">📊</span> 仪表盘
+            </a>
+            <a class="nav-item" href="task-management.html">
+                <span class="nav-icon">📥</span> 录制任务
+            </a>
+            <a class="nav-item" href="video-library.html">
+                <span class="nav-icon">🎬</span> 视频库
+            </a>
+            <a class="nav-item" href="settings.html">
+                <span class="nav-icon">⚙️</span> 系统设置
+            </a>
+        </nav>
+    </aside>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-title">仪表盘</div>
+        <div class="header-right">
+            <div class="header-stat">
+                <span class="dot" style="background: var(--success)"></span>
+                CPU 23%
+            </div>
+            <div class="header-stat">
+                <span class="dot" style="background: var(--info)"></span>
+                RAM 4.2 / 8 GB
+            </div>
+            <div class="header-stat">
+                <span class="dot" style="background: var(--accent)"></span>
+                ↓ 35.8 MB/s
+            </div>
+            <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌙</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card running">
+                <div class="stat-icon">⬇️</div>
+                <div class="stat-label">运行中任务</div>
+                <div class="stat-value">3</div>
+                <div class="stat-trend" style="color: var(--info)">● 正在录制</div>
+            </div>
+            <div class="stat-card queued">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-label">排队中任务</div>
+                <div class="stat-value">5</div>
+                <div class="stat-trend" style="color: var(--text-tertiary)">等待空闲槽位</div>
+            </div>
+            <div class="stat-card completed">
+                <div class="stat-icon">✅</div>
+                <div class="stat-label">今日已完成</div>
+                <div class="stat-value">12</div>
+                <div class="stat-trend" style="color: var(--success)">↑ 20% 较昨日</div>
+            </div>
+            <div class="stat-card failed">
+                <div class="stat-icon">❌</div>
+                <div class="stat-label">失败任务</div>
+                <div class="stat-value">2</div>
+                <div class="stat-trend" style="color: var(--danger)">需要处理</div>
+            </div>
+        </div>
+
+        <!-- Monitor Row -->
+        <div class="monitor-grid">
+            <!-- System Load -->
+            <div class="card">
+                <div class="card-title"><span class="icon">🖥️</span> 系统负载监控</div>
+                <div class="gauge-row">
+                    <div class="gauge">
+                        <div class="gauge-circle">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="bg" cx="60" cy="60" r="52"/>
+                                <circle class="fg" cx="60" cy="60" r="52"
+                                    stroke="var(--success)"
+                                    stroke-dasharray="326.7"
+                                    stroke-dashoffset="251.6"/>
+                            </svg>
+                            <div class="gauge-value" style="color: var(--success)">23%</div>
+                        </div>
+                        <div class="gauge-label">CPU 使用率</div>
+                    </div>
+                    <div class="gauge">
+                        <div class="gauge-circle">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="bg" cx="60" cy="60" r="52"/>
+                                <circle class="fg" cx="60" cy="60" r="52"
+                                    stroke="var(--warning)"
+                                    stroke-dasharray="326.7"
+                                    stroke-dashoffset="137.2"/>
+                            </svg>
+                            <div class="gauge-value" style="color: var(--warning)">58%</div>
+                        </div>
+                        <div class="gauge-label">内存使用率</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage -->
+            <div class="card">
+                <div class="card-title"><span class="icon">💾</span> 存储空间监控</div>
+                <div class="storage-info">
+                    <div class="storage-bar-bg">
+                        <div class="storage-bar-fill" style="width: 62%"></div>
+                    </div>
+                    <div class="storage-details">
+                        <span>已使用 620 GB</span>
+                        <span>总计 1 TB</span>
+                    </div>
+                </div>
+                <div class="storage-breakdown">
+                    <div class="storage-item">
+                        <div class="label">视频文件</div>
+                        <div class="value">580 GB</div>
+                    </div>
+                    <div class="storage-item">
+                        <div class="label">临时缓存</div>
+                        <div class="value">32 GB</div>
+                    </div>
+                    <div class="storage-item">
+                        <div class="label">可用空间</div>
+                        <div class="value" style="color: var(--success)">380 GB</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Tasks -->
+        <div class="card">
+            <div class="card-title"><span class="icon">📋</span> 最近任务活动</div>
+            <table class="task-table">
+                <thead>
+                    <tr>
+                        <th>任务名称</th>
+                        <th>状态</th>
+                        <th>进度</th>
+                        <th>速度</th>
+                        <th>大小</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <div class="task-name">电影_变形金刚_4K</div>
+                            <div class="task-url">https://stream.example.com/movie/tfm4k.m3u8</div>
+                        </td>
+                        <td><span class="status-badge status-downloading"><span class="dot"></span>下载中</span></td>
+                        <td class="progress-cell">
+                            <div class="progress-bar-bg"><div class="progress-bar-fill downloading" style="width: 67%"></div></div>
+                            <span class="progress-text">67.3%</span>
+                        </td>
+                        <td class="speed-cell">25.4 MB/s</td>
+                        <td class="speed-cell">4.2 GB</td>
+                        <td>
+                            <button class="action-btn" title="暂停">⏸</button>
+                            <button class="action-btn danger" title="删除">✕</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="task-name">纪录片_宇宙探索_01</div>
+                            <div class="task-url">https://cdn.example.com/doc/cosmos01.mpd</div>
+                        </td>
+                        <td><span class="status-badge status-merging"><span class="dot"></span>合并中</span></td>
+                        <td class="progress-cell">
+                            <div class="progress-bar-bg"><div class="progress-bar-fill merging" style="width: 99%"></div></div>
+                            <span class="progress-text">99.1% — FFmpeg 混流中</span>
+                        </td>
+                        <td class="speed-cell">--</td>
+                        <td class="speed-cell">1.8 GB</td>
+                        <td>
+                            <button class="action-btn" title="等待完成" disabled style="opacity:0.3">⏸</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="task-name">音乐MV_合集</div>
+                            <div class="task-url">https://music.example.com/mv/collection.m3u8</div>
+                        </td>
+                        <td><span class="status-badge status-downloading"><span class="dot"></span>下载中</span></td>
+                        <td class="progress-cell">
+                            <div class="progress-bar-bg"><div class="progress-bar-fill downloading" style="width: 34%"></div></div>
+                            <span class="progress-text">34.0%</span>
+                        </td>
+                        <td class="speed-cell">8.7 MB/s</td>
+                        <td class="speed-cell">456 MB</td>
+                        <td>
+                            <button class="action-btn" title="暂停">⏸</button>
+                            <button class="action-btn danger" title="删除">✕</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="task-name">直播回放_20260304</div>
+                            <div class="task-url">https://live.example.com/replay/20260304.m3u8</div>
+                        </td>
+                        <td><span class="status-badge status-queued"><span class="dot"></span>排队中</span></td>
+                        <td class="progress-cell">
+                            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: 0%"></div></div>
+                            <span class="progress-text">等待中</span>
+                        </td>
+                        <td class="speed-cell">--</td>
+                        <td class="speed-cell">--</td>
+                        <td>
+                            <button class="action-btn" title="开始">▶</button>
+                            <button class="action-btn danger" title="删除">✕</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="task-name">教学视频_Python入门</div>
+                            <div class="task-url">https://edu.example.com/py/intro.m3u8</div>
+                        </td>
+                        <td><span class="status-badge status-error"><span class="dot"></span>错误</span></td>
+                        <td class="progress-cell">
+                            <div class="progress-bar-bg"><div class="progress-bar-fill error" style="width: 12%"></div></div>
+                            <span class="progress-text" style="color: var(--danger)">连接超时</span>
+                        </td>
+                        <td class="speed-cell">--</td>
+                        <td class="speed-cell">89 MB</td>
+                        <td>
+                            <button class="action-btn" title="重试">🔄</button>
+                            <button class="action-btn danger" title="删除">✕</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle('light');
+            const btn = document.getElementById('themeBtn');
+            btn.textContent = document.body.classList.contains('light') ? '☀️' : '🌙';
+        }
+
+        // Simulate live progress updates
+        setInterval(() => {
+            const fills = document.querySelectorAll('.progress-bar-fill.downloading');
+            fills.forEach(fill => {
+                let w = parseFloat(fill.style.width);
+                if (w < 98) fill.style.width = (w + Math.random() * 0.5) + '%';
+            });
+        }, 2000);
+    </script>
+</body>
+</html>

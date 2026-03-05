@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id           String    @id @default(uuid())
+  name         String
+  url          String
+  status       String    @default("QUEUED")
+  progress     Float     @default(0)
+  speed        String?
+  fileSize     String?
+  outputPath   String?
+  saveName     String?
+  saveDir      String?
+  processId    Int?
+  errorMessage String?
+  retryCount   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  completedAt  DateTime?
+
+  config    TaskConfig?
+  mediaFile MediaFile?
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+model TaskConfig {
+  id           String  @id @default(uuid())
+  taskId       String  @unique
+  userAgent    String?
+  headers      String?
+  proxy        String?
+  threads      Int     @default(16)
+  isLiveStream Boolean @default(false)
+  extraArgs    String?
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model MediaFile {
+  id         String   @id @default(uuid())
+  taskId     String?  @unique
+  fileName   String
+  filePath   String   @unique
+  fileSize   BigInt
+  mimeType   String   @default("video/mp4")
+  duration   Int?
+  resolution String?
+  createdAt  DateTime @default(now())
+
+  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+model SystemSetting {
+  key         String   @id
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}

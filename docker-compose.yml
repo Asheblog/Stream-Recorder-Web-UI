@@ -1,0 +1,20 @@
+version: "3.8"
+services:
+  stream-recorder:
+    build: .
+    container_name: stream-recorder
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./videos:/data/videos
+    environment:
+      - DATABASE_URL=file:/app/data/stream-recorder.db
+      - NODE_ENV=production
+      - TZ=Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

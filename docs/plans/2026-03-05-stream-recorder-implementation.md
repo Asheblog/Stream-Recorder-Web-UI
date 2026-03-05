@@ -4,7 +4,7 @@
 
 **Goal:** 交付一个可运行的 Stream Recorder 全栈应用，覆盖 PRD 核心能力并通过单元测试与集成测试。
 
-**Architecture:** 使用单仓 TypeScript。后端采用 Express + Prisma + Socket.IO；前端采用 React + Vite 并复刻 docs/previews 视觉语言；引擎层提供真实/模拟双模式以保证开发与测试可用性。
+**Architecture:** 使用单仓 TypeScript。后端采用 Express + Prisma + Socket.IO；前端采用 React + Vite 并复刻 docs/previews 视觉语言；引擎层提供真实模式。
 
 **Tech Stack:** TypeScript, React, Vite, Express, Prisma, SQLite, Socket.IO, Vitest, Supertest
 

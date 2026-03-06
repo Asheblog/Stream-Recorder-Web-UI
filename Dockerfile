@@ -4,7 +4,7 @@ COPY package*.json ./
 COPY prisma ./prisma
 RUN npm ci
 COPY . .
-RUN npm run setup:engine -- --force
+RUN DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1 npm run setup:engine -- --force
 RUN npx prisma generate
 RUN npm run build
 

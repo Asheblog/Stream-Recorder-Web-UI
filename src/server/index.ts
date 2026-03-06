@@ -66,6 +66,16 @@ async function start() {
             fs.mkdirSync(videosDir, { recursive: true });
         }
 
+        // Ensure temp and logs directories exist
+        const tempDir = path.join(process.cwd(), 'data', 'tmp');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        const logsDir = path.join(process.cwd(), 'data', 'logs');
+        if (!fs.existsSync(logsDir)) {
+            fs.mkdirSync(logsDir, { recursive: true });
+        }
+
         // Initialize database
         await initializeDatabase();
 

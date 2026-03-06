@@ -4,8 +4,9 @@ import { io, Socket } from 'socket.io-client';
 interface SocketEvents {
     onProgress?: (data: { taskId: string; progress?: number; speed?: string; fileSize?: string }) => void;
     onStatusChange?: (data: { taskId: string; status: string; errorMessage?: string }) => void;
-    onSystemStats?: (data: { cpu: number; memory: number; memTotal: number; memUsed: number }) => void;
+    onSystemStats?: (data: { cpu: number; memory: number; memTotal: number; memUsed: number; downloadSpeedTotal?: number }) => void;
     onTaskOutput?: (data: { taskId: string; lines: string[] }) => void;
+    onTaskOutputAppend?: (data: { taskId: string; line: string; ts: number }) => void;
 }
 
 export function useWebSocket(events: SocketEvents) {
@@ -34,6 +35,10 @@ export function useWebSocket(events: SocketEvents) {
 
         socket.on('task:output', (data) => {
             eventsRef.current.onTaskOutput?.(data);
+        });
+
+        socket.on('task:output:append', (data) => {
+            eventsRef.current.onTaskOutputAppend?.(data);
         });
 
         return () => {

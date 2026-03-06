@@ -5,6 +5,8 @@ import {
     ToolOutlined,
     FolderOutlined,
     ThunderboltOutlined,
+    InfoCircleOutlined,
+    LinkOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
     SaveOutlined,
@@ -125,11 +127,24 @@ export default function Settings() {
             <div className="settings-section">
                 <div className="settings-section-title"><FolderOutlined /> 存储配置</div>
                 <div className="settings-card">
-                    <div className="form-group" style={{ marginBottom: 0 }}>
+                    <div className="form-group">
                         <label className="form-label">默认保存目录</label>
                         <input className="form-input" placeholder="/data/videos"
                             value={getValue('storage.save_dir')}
                             onChange={e => updateValue('storage.save_dir', e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                        <label className="form-label">临时文件目录</label>
+                        <input className="form-input" placeholder="/data/tmp"
+                            value={getValue('storage.temp_dir')}
+                            onChange={e => updateValue('storage.temp_dir', e.target.value)} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">自动清理临时文件</label>
+                        <Switch
+                            checked={getValue('storage.cleanup_temp_files') !== 'false'}
+                            onChange={v => updateValue('storage.cleanup_temp_files', String(v))}
+                        />
                     </div>
                 </div>
             </div>
@@ -160,6 +175,19 @@ export default function Settings() {
                         />
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">默认输出格式</label>
+                        <select
+                            className="form-select"
+                            value={getValue('task.default_output_format') || 'mp4'}
+                            onChange={(e) => updateValue('task.default_output_format', e.target.value)}
+                            style={{ width: 200 }}
+                        >
+                            <option value="mp4">MP4 (.mp4)</option>
+                            <option value="mkv">MKV (.mkv)</option>
+                            <option value="ts">TS (.ts)</option>
+                        </select>
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">最大重试次数</label>
                         <input className="form-input" type="number" min={1} max={10}
                             value={getValue('task.max_retry_count')}
@@ -169,14 +197,38 @@ export default function Settings() {
                 </div>
             </div>
 
+            {/* About */}
+            <div className="settings-section">
+                <div className="settings-section-title"><InfoCircleOutlined /> 关于</div>
+                <div className="settings-card">
+                    <div className="detail-info-grid">
+                        <div className="detail-info-item">
+                            <div className="detail-info-label">应用版本</div>
+                            <div className="detail-info-value">v1.0.0</div>
+                        </div>
+                        <div className="detail-info-item">
+                            <div className="detail-info-label">Node.js</div>
+                            <div className="detail-info-value">运行时环境</div>
+                        </div>
+                        <div className="detail-info-item">
+                            <div className="detail-info-label">数据库</div>
+                            <div className="detail-info-value">SQLite / Prisma</div>
+                        </div>
+                        <div className="detail-info-item">
+                            <div className="detail-info-label">引擎主页</div>
+                            <div className="detail-info-value">
+                                <a href="https://github.com/nilaoda/N_m3u8DL-RE" target="_blank" rel="noreferrer">
+                                    GitHub <LinkOutlined />
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Save Bar */}
             {dirty && (
-                <div style={{
-                    position: 'fixed', bottom: 0, left: 'var(--sidebar-width)', right: 0,
-                    background: 'var(--bg-surface)', borderTop: '1px solid var(--border)',
-                    padding: '12px 28px', display: 'flex', justifyContent: 'flex-end', gap: 12,
-                    zIndex: 100,
-                }}>
+                <div className="settings-save-bar">
                     <button className="btn btn-ghost" onClick={handleReset}><UndoOutlined /> 重置</button>
                     <button className="btn btn-primary" onClick={handleSave}><SaveOutlined /> 保存设置</button>
                 </div>

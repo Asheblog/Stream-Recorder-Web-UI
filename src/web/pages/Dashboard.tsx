@@ -29,21 +29,24 @@ const CIRCUMFERENCE = 2 * Math.PI * 52; // r=52
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const [stats, setStats] = useState({ running: 0, queued: 0, completed: 0, failed: 0 });
+    const [stats, setStats] = useState({ running: 0, queued: 0, todayCompleted: 0, failed: 0 });
     const [system, setSystem] = useState<any>({ cpu: { usage: 0 }, memory: { usage: 0, total: 0, used: 0 }, disk: { total: 0, used: 0, free: 0, usage: 0 } });
     const [recentTasks, setRecentTasks] = useState<any[]>([]);
 
     const loadData = useCallback(async () => {
         try {
             const [tasksRes, sysInfo] = await Promise.all([
-                taskApi.list({ pageSize: 100 }),
+                taskApi.list({ pageSize: 500 }),
                 systemApi.info(),
             ]);
             const tasks = tasksRes.tasks || [];
+            const startOfToday = new Date();
+            startOfToday.setHours(0, 0, 0, 0);
+
             setStats({
                 running: tasks.filter((t: any) => t.status === 'DOWNLOADING' || t.status === 'MERGING').length,
                 queued: tasks.filter((t: any) => t.status === 'QUEUED').length,
-                completed: tasks.filter((t: any) => t.status === 'COMPLETED').length,
+                todayCompleted: tasks.filter((t: any) => t.status === 'COMPLETED' && t.completedAt && new Date(t.completedAt) >= startOfToday).length,
                 failed: tasks.filter((t: any) => t.status === 'ERROR').length,
             });
             // Recent: get first 5 non-completed or recently active
@@ -121,9 +124,9 @@ export default function Dashboard() {
                 </div>
                 <div className="stat-card completed">
                     <div className="stat-icon"><CheckCircleOutlined /></div>
-                    <div className="stat-label">已完成</div>
-                    <div className="stat-value">{stats.completed}</div>
-                    <div className="stat-trend" style={{ color: 'var(--success)' }}>全部任务累计</div>
+                    <div className="stat-label">今日已完成</div>
+                    <div className="stat-value">{stats.todayCompleted}</div>
+                    <div className="stat-trend" style={{ color: 'var(--success)' }}>按本地日期统计</div>
                 </div>
                 <div className="stat-card failed">
                     <div className="stat-icon"><CloseCircleOutlined /></div>

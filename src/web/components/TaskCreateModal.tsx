@@ -49,9 +49,20 @@ export default function TaskCreateModal({ onClose, onCreated }: Props) {
             };
 
             if (showAdvanced) {
+                let parsedHeaders: Record<string, string> | undefined;
+                if (config.headers) {
+                    try {
+                        parsedHeaders = JSON.parse(config.headers);
+                    } catch {
+                        message.error('Headers 必须是合法 JSON');
+                        setLoading(false);
+                        return;
+                    }
+                }
+
                 data.config = {
                     userAgent: config.userAgent || undefined,
-                    headers: config.headers ? JSON.parse(config.headers) : undefined,
+                    headers: parsedHeaders,
                     proxy: config.proxy || undefined,
                     threads: config.threads || 16,
                     isLiveStream: config.isLiveStream,
@@ -116,8 +127,8 @@ export default function TaskCreateModal({ onClose, onCreated }: Props) {
                             value={saveName} onChange={e => setSaveName(e.target.value)} />
                     </div>
                     <div className="form-group">
-                        <label className="form-label">保存目录</label>
-                        <input className="form-input" placeholder="使用默认目录"
+                        <label className="form-label">保存子目录</label>
+                        <input className="form-input" placeholder="例如 movies/2026（留空使用默认）"
                             value={saveDir} onChange={e => setSaveDir(e.target.value)} />
                     </div>
                 </div>

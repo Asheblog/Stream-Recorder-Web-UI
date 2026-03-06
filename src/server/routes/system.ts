@@ -2,9 +2,29 @@ import { Router, Request, Response } from 'express';
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import { getSetting } from '../db.js';
+import prisma, { getSetting } from '../db.js';
 
 const router = Router();
+
+function parseSpeedToBytes(speed?: string | null): number {
+    if (!speed) return 0;
+    const match = speed.trim().match(/([\d.]+)\s*([KMGTP]?B)\s*\/\s*s/i);
+    if (!match) return 0;
+
+    const value = Number(match[1]);
+    if (!Number.isFinite(value)) return 0;
+
+    const unit = match[2].toUpperCase();
+    const unitMap: Record<string, number> = {
+        B: 1,
+        KB: 1024,
+        MB: 1024 ** 2,
+        GB: 1024 ** 3,
+        TB: 1024 ** 4,
+        PB: 1024 ** 5,
+    };
+    return value * (unitMap[unit] || 1);
+}
 
 // GET /api/system/info - Get system info
 router.get('/info', async (_req: Request, res: Response) => {
@@ -69,6 +89,17 @@ router.get('/info', async (_req: Request, res: Response) => {
             // Disk info not available
         }
 
+        let downloadSpeedTotal = 0;
+        try {
+            const runningTasks = await prisma.task.findMany({
+                where: { status: { in: ['DOWNLOADING', 'MERGING'] } },
+                select: { speed: true },
+            });
+            downloadSpeedTotal = runningTasks.reduce((sum, task) => sum + parseSpeedToBytes(task.speed), 0);
+        } catch {
+            downloadSpeedTotal = 0;
+        }
+
         res.json({
             cpu: {
                 usage: cpuUsage,
@@ -91,6 +122,7 @@ router.get('/info', async (_req: Request, res: Response) => {
             arch: os.arch(),
             hostname: os.hostname(),
             uptime: os.uptime(),
+            downloadSpeedTotal,
         });
     } catch (err: any) {
         res.status(500).json({ error: err.message });

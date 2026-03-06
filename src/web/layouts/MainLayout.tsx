@@ -10,6 +10,8 @@ import {
     SettingOutlined,
     SunOutlined,
     MoonOutlined,
+    MenuFoldOutlined,
+    MenuUnfoldOutlined,
 } from '@ant-design/icons';
 
 const navItems = [
@@ -27,23 +29,43 @@ const pageLabels: Record<string, string> = {
 };
 
 function formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B';
+    if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+function formatSpeed(bytesPerSecond: number): string {
+    if (!bytesPerSecond || bytesPerSecond <= 0) return '0 B/s';
+    return `${formatBytes(bytesPerSecond)}/s`;
+}
+
 export default function MainLayout() {
     const { theme, toggle } = useThemeStore();
     const location = useLocation();
-    const [systemStats, setSystemStats] = useState({ cpu: 0, memory: 0, memTotal: 0, memUsed: 0 });
-
-    useWebSocket({
-        onSystemStats: (data) => setSystemStats(data),
+    const [collapsed, setCollapsed] = useState(localStorage.getItem('sidebar_collapsed') === 'true');
+    const [systemStats, setSystemStats] = useState({
+        cpu: 0,
+        memory: 0,
+        memTotal: 0,
+        memUsed: 0,
+        downloadSpeedTotal: 0,
     });
 
-    // Also poll system info on mount
+    useWebSocket({
+        onSystemStats: (data) => {
+            setSystemStats((prev) => ({
+                ...prev,
+                cpu: data.cpu,
+                memory: data.memory,
+                memTotal: data.memTotal,
+                memUsed: data.memUsed,
+                downloadSpeedTotal: data.downloadSpeedTotal || 0,
+            }));
+        },
+    });
+
     useEffect(() => {
         systemApi.info().then((info) => {
             setSystemStats({
@@ -51,20 +73,27 @@ export default function MainLayout() {
                 memory: info.memory.usage,
                 memTotal: info.memory.total,
                 memUsed: info.memory.used,
+                downloadSpeedTotal: info.downloadSpeedTotal || 0,
             });
         }).catch(() => { });
     }, []);
 
-    const pageTitle = pageLabels[location.pathname] || '任务详情';
+    const pageTitle = pageLabels[location.pathname] || (location.pathname.startsWith('/tasks/') ? '任务详情' : '控制台');
+
+    const toggleSidebar = () => {
+        const next = !collapsed;
+        setCollapsed(next);
+        localStorage.setItem('sidebar_collapsed', String(next));
+    };
 
     return (
-        <>
-            {/* Sidebar */}
-            <aside className="sidebar">
+        <div className={`layout-root ${collapsed ? 'sidebar-collapsed' : ''}`}>
+            <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
                 <div className="sidebar-brand">
-                    <div className="logo">SR</div>
-                    <span className="name">Stream Recorder</span>
+                    <div className="logo" aria-hidden="true">SR</div>
+                    {!collapsed && <span className="name">Stream Recorder</span>}
                 </div>
+
                 <nav className="sidebar-nav">
                     {navItems.map((item) => (
                         <NavLink
@@ -72,15 +101,26 @@ export default function MainLayout() {
                             to={item.path}
                             end={item.path === '/'}
                             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                            aria-label={item.label}
                         >
                             <span className="nav-icon">{item.icon}</span>
-                            {item.label}
+                            {!collapsed && item.label}
                         </NavLink>
                     ))}
                 </nav>
+
+                <div className="sidebar-footer">
+                    <button
+                        className="sidebar-collapse-btn"
+                        onClick={toggleSidebar}
+                        aria-label={collapsed ? '展开侧边栏' : '折叠侧边栏'}
+                    >
+                        {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                        {!collapsed && <span>折叠</span>}
+                    </button>
+                </div>
             </aside>
 
-            {/* Header */}
             <header className="header">
                 <div className="header-title">{pageTitle}</div>
                 <div className="header-right">
@@ -92,16 +132,34 @@ export default function MainLayout() {
                         <span className="dot" style={{ background: systemStats.memory > 80 ? 'var(--warning)' : 'var(--info)' }} />
                         RAM {formatBytes(systemStats.memUsed)} / {formatBytes(systemStats.memTotal)}
                     </div>
-                    <button className="theme-toggle" onClick={toggle}>
+                    <div className="header-stat">
+                        <span className="dot" style={{ background: 'var(--accent)' }} />
+                        {formatSpeed(systemStats.downloadSpeedTotal)}
+                    </div>
+                    <button className="theme-toggle" onClick={toggle} aria-label="切换主题">
                         {theme === 'dark' ? <MoonOutlined /> : <SunOutlined />}
                     </button>
                 </div>
             </header>
 
-            {/* Main Content */}
             <main className="main">
                 <Outlet />
             </main>
-        </>
+
+            <nav className="mobile-tabbar" aria-label="移动端导航">
+                {navItems.map((item) => (
+                    <NavLink
+                        key={`mobile-${item.path}`}
+                        to={item.path}
+                        end={item.path === '/'}
+                        className={({ isActive }) => `mobile-tab ${isActive ? 'active' : ''}`}
+                        aria-label={item.label}
+                    >
+                        <span className="mobile-tab-icon">{item.icon}</span>
+                        <span className="mobile-tab-label">{item.label}</span>
+                    </NavLink>
+                ))}
+            </nav>
+        </div>
     );
 }

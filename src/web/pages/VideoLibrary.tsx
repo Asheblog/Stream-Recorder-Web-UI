@@ -21,6 +21,17 @@ function formatBytes(bytes: number | string): string {
     return parseFloat((n / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+function formatDuration(seconds?: number | null): string {
+    if (!seconds || seconds <= 0) return '--';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 export default function VideoLibrary() {
     const [files, setFiles] = useState<any[]>([]);
     const [pagination, setPagination] = useState({ page: 1, pageSize: 20, total: 0 });
@@ -97,6 +108,10 @@ export default function VideoLibrary() {
                                     <span>{formatBytes(file.fileSize)}</span>
                                     <span>{new Date(file.createdAt).toLocaleDateString()}</span>
                                 </div>
+                                <div className="video-meta" style={{ marginTop: 4 }}>
+                                    <span>{file.resolution || '--'}</span>
+                                    <span>{formatDuration(file.duration)}</span>
+                                </div>
                                 <div style={{ marginTop: 8, display: 'flex', gap: 4 }}>
                                     <button className="action-btn" title="播放" onClick={e => { e.stopPropagation(); setPlayingFile(file); }}>
                                         <PlayCircleOutlined />
@@ -128,7 +143,10 @@ export default function VideoLibrary() {
                         <thead>
                             <tr>
                                 <th>文件名</th>
+                                <th>格式</th>
+                                <th>分辨率</th>
                                 <th>大小</th>
+                                <th>时长</th>
                                 <th>类型</th>
                                 <th>录制时间</th>
                                 <th>操作</th>
@@ -141,7 +159,10 @@ export default function VideoLibrary() {
                                         <div className="task-name">{file.fileName}</div>
                                         <div className="task-url">{file.filePath}</div>
                                     </td>
+                                    <td className="speed-cell">{(file.fileName?.split('.').pop() || '--').toUpperCase()}</td>
+                                    <td className="speed-cell">{file.resolution || '--'}</td>
                                     <td className="speed-cell">{formatBytes(file.fileSize)}</td>
+                                    <td className="speed-cell">{formatDuration(file.duration)}</td>
                                     <td className="speed-cell">{file.mimeType}</td>
                                     <td className="speed-cell">{new Date(file.createdAt).toLocaleString()}</td>
                                     <td>

@@ -28,6 +28,7 @@ export const taskApi = {
     start: (id: string) => request<any>(`/tasks/${id}/start`, { method: 'POST' }),
     stop: (id: string) => request<any>(`/tasks/${id}/stop`, { method: 'POST' }),
     retry: (id: string) => request<any>(`/tasks/${id}/retry`, { method: 'POST' }),
+    logs: (id: string, limit = 2000) => request<any>(`/tasks/${id}/logs?limit=${limit}`),
     batch: (action: string, taskIds: string[]) =>
         request<any>('/tasks/batch', { method: 'POST', body: JSON.stringify({ action, taskIds }) }),
 };

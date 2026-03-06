@@ -72,11 +72,19 @@ export default function TaskList() {
         } catch (err: any) { message.error(err.message); }
     };
 
-    const handleBatch = async (action: string) => {
-        if (selected.size === 0) return message.warning('请先选择任务');
+    const handleBatch = async (action: string, ids?: string[]) => {
+        const targetIds = ids && ids.length > 0 ? ids : Array.from(selected);
+        if (targetIds.length === 0) return message.warning('请先选择任务');
         try {
-            await taskApi.batch(action, Array.from(selected));
-            message.success(`批量${action === 'start' ? '启动' : action === 'stop' ? '停止' : '删除'}成功`);
+            await taskApi.batch(action, targetIds);
+            const actionText = action === 'start'
+                ? '启动'
+                : action === 'stop'
+                    ? '停止'
+                    : action === 'retry'
+                        ? '重试'
+                        : '删除';
+            message.success(`批量${actionText}成功`);
             setSelected(new Set());
             loadTasks();
         } catch (err: any) { message.error(err.message); }
@@ -105,6 +113,20 @@ export default function TaskList() {
                 <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
                     <PlusOutlined /> 新建任务
                 </button>
+                <button
+                    className="btn btn-secondary"
+                    onClick={() => handleBatch('start', tasks.map((t) => t.id))}
+                    disabled={tasks.length === 0}
+                >
+                    <CaretRightOutlined /> 全部开始
+                </button>
+                <button
+                    className="btn btn-secondary"
+                    onClick={() => handleBatch('stop', tasks.map((t) => t.id))}
+                    disabled={tasks.length === 0}
+                >
+                    <PauseOutlined /> 全部暂停
+                </button>
                 {selected.size > 0 && (
                     <>
                         <button className="btn btn-ghost" onClick={() => handleBatch('start')}>
@@ -112,6 +134,9 @@ export default function TaskList() {
                         </button>
                         <button className="btn btn-ghost" onClick={() => handleBatch('stop')}>
                             <PauseOutlined /> 批量停止
+                        </button>
+                        <button className="btn btn-ghost" onClick={() => handleBatch('retry')}>
+                            <ReloadOutlined /> 批量重试
                         </button>
                         <button className="btn btn-ghost" onClick={() => handleBatch('delete')}>
                             <DeleteOutlined /> 批量删除
@@ -151,6 +176,7 @@ export default function TaskList() {
                             <th>进度</th>
                             <th>速度</th>
                             <th>大小</th>
+                            <th>创建时间</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -182,6 +208,7 @@ export default function TaskList() {
                                 </td>
                                 <td className="speed-cell">{task.speed || '--'}</td>
                                 <td className="speed-cell">{task.fileSize || '--'}</td>
+                                <td className="speed-cell">{new Date(task.createdAt).toLocaleString()}</td>
                                 <td onClick={e => e.stopPropagation()}>
                                     {(task.status === 'DOWNLOADING' || task.status === 'MERGING') && (
                                         <button className="action-btn" title="暂停" onClick={() => handleAction('stop', task.id)}><PauseOutlined /></button>
@@ -198,7 +225,7 @@ export default function TaskList() {
                         ))}
                         {tasks.length === 0 && (
                             <tr>
-                                <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: 60 }}>
+                                <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: 60 }}>
                                     <ThunderboltOutlined style={{ fontSize: 32, marginBottom: 12 }} /><br />
                                     暂无录制任务，点击"新建任务"开始
                                 </td>

@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, spawn, spawnSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import prisma, { getSetting } from '../db.js';
@@ -23,14 +23,46 @@ export interface TaskWithConfig {
 
 export type ProgressCallback = (taskId: string, data: ParsedProgress) => void;
 export type StatusCallback = (taskId: string, status: string, errorMessage?: string) => void;
+export type OutputCallback = (taskId: string, line: string) => void;
+
+const DEFAULT_LOG_LIMIT = 2000;
+
+function ensureDir(dirPath: string): void {
+    if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+    }
+}
+
+function normalizeOutputFormat(value: string | null): 'mp4' | 'mkv' | 'ts' {
+    const format = (value || '').trim().toLowerCase();
+    if (format === 'mkv' || format === 'ts') {
+        return format;
+    }
+    return 'mp4';
+}
+
+function hasExtension(name: string): boolean {
+    return /\.[a-z0-9]+$/i.test(name);
+}
+
+function parseHeaders(raw: string): Array<[string, string]> {
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        return [];
+    }
+    return Object.entries(data)
+        .filter(([k, v]) => typeof k === 'string' && typeof v === 'string') as Array<[string, string]>;
+}
 
 class ProcessManager {
     private processes: Map<string, ChildProcess> = new Map();
     private outputBuffers: Map<string, string[]> = new Map();
     private onProgress: ProgressCallback | null = null;
     private onStatusChange: StatusCallback | null = null;
+    private onOutputLine: OutputCallback | null = null;
     private lastProgressUpdate: Map<string, number> = new Map();
     private readonly THROTTLE_MS = 300;
+    private readonly logsDir = path.join(process.cwd(), 'data', 'logs');
 
     setProgressCallback(cb: ProgressCallback) {
         this.onProgress = cb;
@@ -38,6 +70,10 @@ class ProcessManager {
 
     setStatusCallback(cb: StatusCallback) {
         this.onStatusChange = cb;
+    }
+
+    setOutputCallback(cb: OutputCallback) {
+        this.onOutputLine = cb;
     }
 
     getRunningCount(): number {
@@ -52,6 +88,29 @@ class ProcessManager {
         return this.outputBuffers.get(taskId) || [];
     }
 
+    getLogFilePath(taskId: string): string {
+        return path.join(this.logsDir, `${taskId}.log`);
+    }
+
+    getTaskTempDir(taskId: string, tempRoot?: string): string {
+        const root = tempRoot ? path.resolve(tempRoot) : path.resolve(path.join(process.cwd(), 'data', 'tmp'));
+        return path.join(root, taskId);
+    }
+
+    getLogHistory(taskId: string, limit = DEFAULT_LOG_LIMIT): string[] {
+        const logPath = this.getLogFilePath(taskId);
+        if (!fs.existsSync(logPath)) {
+            return [];
+        }
+
+        const text = fs.readFileSync(logPath, 'utf-8');
+        const lines = text.split(/\r?\n/).filter(Boolean);
+        if (lines.length <= limit) {
+            return lines;
+        }
+        return lines.slice(lines.length - limit);
+    }
+
     async startTask(task: TaskWithConfig): Promise<void> {
         if (this.processes.has(task.id)) {
             throw new Error(`Task ${task.id} is already running`);
@@ -62,33 +121,40 @@ class ProcessManager {
 
         console.log(`[Engine] Starting task ${task.id}: ${enginePath} ${args.join(' ')}`);
 
-        // Ensure save directory exists
         const saveDir = task.saveDir || await getSetting('storage.save_dir') || './data/videos';
         const fullSaveDir = path.resolve(saveDir);
-        if (!fs.existsSync(fullSaveDir)) {
-            fs.mkdirSync(fullSaveDir, { recursive: true });
+        const tempRoot = path.resolve(await getSetting('storage.temp_dir') || './data/tmp');
+        const taskTempDir = this.getTaskTempDir(task.id, tempRoot);
+
+        ensureDir(fullSaveDir);
+        ensureDir(taskTempDir);
+        ensureDir(this.logsDir);
+
+        const logPath = this.getLogFilePath(task.id);
+        if (!fs.existsSync(logPath)) {
+            fs.writeFileSync(logPath, '', 'utf-8');
         }
 
         const child = spawn(enginePath, args, {
             stdio: ['pipe', 'pipe', 'pipe'],
             cwd: process.cwd(),
+            windowsHide: true,
         });
 
         this.processes.set(task.id, child);
         this.outputBuffers.set(task.id, []);
 
-        // Update task with PID
         await prisma.task.update({
             where: { id: task.id },
             data: {
                 status: 'DOWNLOADING',
                 processId: child.pid || null,
+                errorMessage: null,
             },
         });
 
         this.onStatusChange?.call(null, task.id, 'DOWNLOADING');
 
-        // Handle stdout
         child.stdout?.on('data', (data: Buffer) => {
             const lines = data.toString().split(/\r?\n/).filter(Boolean);
             for (const line of lines) {
@@ -96,7 +162,6 @@ class ProcessManager {
             }
         });
 
-        // Handle stderr (N_m3u8DL-RE also outputs progress to stderr)
         child.stderr?.on('data', (data: Buffer) => {
             const lines = data.toString().split(/\r?\n/).filter(Boolean);
             for (const line of lines) {
@@ -104,7 +169,6 @@ class ProcessManager {
             }
         });
 
-        // Handle process exit
         child.on('close', async (code) => {
             this.processes.delete(task.id);
             this.lastProgressUpdate.delete(task.id);
@@ -115,12 +179,11 @@ class ProcessManager {
                 const currentTask = await prisma.task.findUnique({ where: { id: task.id } });
                 if (!currentTask) return;
 
-                // If already marked as STOPPED by user, don't change
                 if (currentTask.status === 'STOPPED') return;
 
                 if (code === 0) {
-                    // Find the output file
                     const outputPath = await this.findOutputFile(task);
+                    const metadata = outputPath ? await this.getMediaMetadata(outputPath) : null;
 
                     await prisma.task.update({
                         where: { id: task.id },
@@ -128,40 +191,41 @@ class ProcessManager {
                             status: 'COMPLETED',
                             progress: 100,
                             processId: null,
+                            speed: null,
                             completedAt: new Date(),
                             outputPath,
                         },
                     });
 
-                    // Create MediaFile record if output exists
                     if (outputPath && fs.existsSync(outputPath)) {
                         const stats = fs.statSync(outputPath);
                         await prisma.mediaFile.upsert({
                             where: { filePath: outputPath },
-                            update: { fileSize: stats.size },
+                            update: {
+                                fileSize: BigInt(stats.size),
+                                mimeType: metadata?.mimeType || this.guessMimeType(outputPath),
+                                duration: metadata?.duration ?? null,
+                                resolution: metadata?.resolution ?? null,
+                            },
                             create: {
                                 taskId: task.id,
                                 fileName: path.basename(outputPath),
                                 filePath: outputPath,
-                                fileSize: stats.size,
-                                mimeType: outputPath.endsWith('.mkv') ? 'video/x-matroska' : 'video/mp4',
+                                fileSize: BigInt(stats.size),
+                                mimeType: metadata?.mimeType || this.guessMimeType(outputPath),
+                                duration: metadata?.duration ?? null,
+                                resolution: metadata?.resolution ?? null,
                             },
                         });
                     }
 
                     this.onStatusChange?.call(null, task.id, 'COMPLETED');
-                } else {
-                    const errorMsg = `Process exited with code ${code}`;
-                    await prisma.task.update({
-                        where: { id: task.id },
-                        data: {
-                            status: 'ERROR',
-                            processId: null,
-                            errorMessage: errorMsg,
-                        },
-                    });
-                    this.onStatusChange?.call(null, task.id, 'ERROR', errorMsg);
+                    await this.cleanupTaskTempDir(task.id);
+                    return;
                 }
+
+                await this.handleTaskFailure(task.id, currentTask.retryCount, `Process exited with code ${code}`);
+                await this.cleanupTaskTempDir(task.id);
             } catch (err) {
                 console.error(`[Engine] Error updating task status for ${task.id}:`, err);
             }
@@ -172,17 +236,12 @@ class ProcessManager {
             this.processes.delete(task.id);
 
             try {
-                await prisma.task.update({
-                    where: { id: task.id },
-                    data: {
-                        status: 'ERROR',
-                        processId: null,
-                        errorMessage: err.message,
-                    },
-                });
-                this.onStatusChange?.call(null, task.id, 'ERROR', err.message);
+                const currentTask = await prisma.task.findUnique({ where: { id: task.id } });
+                if (!currentTask) return;
+                await this.handleTaskFailure(task.id, currentTask.retryCount, err.message);
+                await this.cleanupTaskTempDir(task.id);
             } catch (dbErr) {
-                console.error(`[Engine] DB error:`, dbErr);
+                console.error('[Engine] DB error:', dbErr);
             }
         });
     }
@@ -196,23 +255,30 @@ class ProcessManager {
         console.log(`[Engine] Stopping task ${taskId} (PID: ${child.pid})`);
 
         if (process.platform === 'win32') {
-            // On Windows, use taskkill with tree flag for graceful stop
             try {
-                spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+                spawn('taskkill', ['/PID', String(child.pid), '/T'], { stdio: 'ignore', windowsHide: true });
             } catch {
                 child.kill('SIGTERM');
             }
         } else {
-            // On Linux/macOS, send SIGINT for graceful shutdown
             child.kill('SIGINT');
         }
 
-        // Wait briefly then force kill if still running
         setTimeout(() => {
-            if (this.processes.has(taskId)) {
+            if (!this.processes.has(taskId)) {
+                return;
+            }
+
+            if (process.platform === 'win32') {
+                try {
+                    spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true });
+                } catch {
+                    child.kill('SIGKILL');
+                }
+            } else {
                 child.kill('SIGKILL');
             }
-        }, 10000);
+        }, 8000);
 
         await prisma.task.update({
             where: { id: taskId },
@@ -225,6 +291,9 @@ class ProcessManager {
 
         this.processes.delete(taskId);
         this.onStatusChange?.call(null, taskId, 'STOPPED');
+        setTimeout(() => {
+            this.cleanupTaskTempDir(taskId).catch(() => { });
+        }, 10_000);
     }
 
     stopAll(): void {
@@ -233,17 +302,79 @@ class ProcessManager {
         }
     }
 
-    private handleOutputLine(taskId: string, line: string) {
-        // Store in buffer (keep last 500 lines)
+    private async handleTaskFailure(taskId: string, currentRetryCount: number, errorMessage: string): Promise<void> {
+        const autoRetry = (await getSetting('task.auto_retry')) === 'true';
+        const maxRetryCount = parseInt(await getSetting('task.max_retry_count') || '3', 10);
+
+        if (autoRetry && currentRetryCount < maxRetryCount) {
+            await prisma.task.update({
+                where: { id: taskId },
+                data: {
+                    status: 'RETRYING',
+                    processId: null,
+                    speed: null,
+                    errorMessage,
+                    retryCount: { increment: 1 },
+                },
+            });
+
+            this.onStatusChange?.call(null, taskId, 'RETRYING', errorMessage);
+
+            setTimeout(async () => {
+                try {
+                    await prisma.task.update({
+                        where: { id: taskId },
+                        data: {
+                            status: 'QUEUED',
+                            progress: 0,
+                            speed: null,
+                            fileSize: null,
+                            processId: null,
+                        },
+                    });
+
+                    const { taskScheduler } = await import('./task-scheduler.js');
+                    await taskScheduler.triggerCheck();
+                } catch (err) {
+                    console.error(`[Engine] Failed to enqueue retry task ${taskId}:`, err);
+                }
+            }, 1200);
+
+            return;
+        }
+
+        await prisma.task.update({
+            where: { id: taskId },
+            data: {
+                status: 'ERROR',
+                processId: null,
+                errorMessage,
+            },
+        });
+
+        this.onStatusChange?.call(null, taskId, 'ERROR', errorMessage);
+    }
+
+    private handleOutputLine(taskId: string, line: string): void {
         const buffer = this.outputBuffers.get(taskId) || [];
         buffer.push(line);
-        if (buffer.length > 500) buffer.shift();
+        if (buffer.length > 500) {
+            buffer.shift();
+        }
         this.outputBuffers.set(taskId, buffer);
 
-        // Parse progress
+        const logPath = this.getLogFilePath(taskId);
+        try {
+            ensureDir(this.logsDir);
+            fs.appendFileSync(logPath, `${line}\n`, 'utf-8');
+        } catch {
+            // ignore log write errors
+        }
+
+        this.onOutputLine?.call(null, taskId, line);
+
         const parsed = parseStdoutLine(line);
 
-        // Throttle progress updates
         const now = Date.now();
         const lastUpdate = this.lastProgressUpdate.get(taskId) || 0;
         if (now - lastUpdate < this.THROTTLE_MS && !parsed.status) {
@@ -251,7 +382,6 @@ class ProcessManager {
         }
         this.lastProgressUpdate.set(taskId, now);
 
-        // Update database (fire and forget)
         if (parsed.progress !== undefined || parsed.speed || parsed.fileSize) {
             const updateData: any = {};
             if (parsed.progress !== undefined) updateData.progress = parsed.progress;
@@ -265,12 +395,10 @@ class ProcessManager {
             }).catch(() => { });
         }
 
-        // Emit progress event
         if (parsed.progress !== undefined || parsed.speed || parsed.status) {
             this.onProgress?.call(null, taskId, parsed);
         }
 
-        // Handle status changes from parser
         if (parsed.status === 'merging') {
             this.onStatusChange?.call(null, taskId, 'MERGING');
         }
@@ -279,56 +407,63 @@ class ProcessManager {
     private async buildArgs(task: TaskWithConfig): Promise<string[]> {
         const args: string[] = [task.url];
 
-        // Save name
-        const saveName = task.saveName || task.name;
+        const outputFormat = normalizeOutputFormat(await getSetting('task.default_output_format'));
+        const saveNameRaw = (task.saveName || task.name || '').trim();
+        const saveName = hasExtension(saveNameRaw) ? saveNameRaw : `${saveNameRaw}.${outputFormat}`;
+
         if (saveName) {
             args.push('--save-name', saveName);
         }
 
-        // Save directory
         const saveDir = task.saveDir || await getSetting('storage.save_dir') || './data/videos';
         args.push('--save-dir', path.resolve(saveDir));
 
-        // Thread count
+        const tempDir = await getSetting('storage.temp_dir') || './data/tmp';
+        args.push('--tmp-dir', this.getTaskTempDir(task.id, tempDir));
+
         const defaultThreads = await getSetting('task.default_threads') || '16';
-        const threads = task.config?.threads || parseInt(defaultThreads);
+        const threads = task.config?.threads || parseInt(defaultThreads, 10);
         args.push('--thread-count', String(threads));
 
-        // FFmpeg path - let N_m3u8DL-RE know where ffmpeg is
         try {
             const ffmpegPath = await resolveFfmpegPath();
             if (ffmpegPath !== 'ffmpeg') {
                 args.push('--ffmpeg-binary-path', ffmpegPath);
             }
-        } catch { /* use system default */ }
+        } catch {
+            // keep default ffmpeg in PATH
+        }
 
-        // Advanced config
         if (task.config) {
             if (task.config.userAgent) {
-                args.push('--custom-hls-key', `User-Agent:${task.config.userAgent}`);
+                args.push('--header', `User-Agent:${task.config.userAgent}`);
             }
+
             if (task.config.headers) {
                 try {
-                    const headers = JSON.parse(task.config.headers);
-                    for (const [key, value] of Object.entries(headers)) {
+                    const headers = parseHeaders(task.config.headers);
+                    for (const [key, value] of headers) {
                         args.push('--header', `${key}:${value}`);
                     }
-                } catch { /* invalid JSON, skip */ }
+                } catch {
+                    // ignore invalid headers json
+                }
             }
+
             if (task.config.proxy) {
                 args.push('--custom-proxy', task.config.proxy);
             }
+
             if (task.config.isLiveStream) {
                 args.push('--live-perform-as-vod');
             }
+
             if (task.config.extraArgs) {
                 args.push(...task.config.extraArgs.split(/\s+/).filter(Boolean));
             }
         }
 
-        // Auto-merge
         args.push('--auto-select');
-        args.push('--no-log');
 
         return args;
     }
@@ -336,34 +471,122 @@ class ProcessManager {
     private async findOutputFile(task: TaskWithConfig): Promise<string | null> {
         const saveDir = task.saveDir || await getSetting('storage.save_dir') || './data/videos';
         const fullSaveDir = path.resolve(saveDir);
-        const saveName = task.saveName || task.name;
+        const outputFormat = normalizeOutputFormat(await getSetting('task.default_output_format'));
 
-        if (!fs.existsSync(fullSaveDir)) return null;
+        const saveNameRaw = (task.saveName || task.name || '').trim();
+        const saveName = hasExtension(saveNameRaw) ? saveNameRaw : `${saveNameRaw}.${outputFormat}`;
 
-        // Look for common video extensions
-        const extensions = ['.mp4', '.mkv', '.ts'];
-        for (const ext of extensions) {
-            const filePath = path.join(fullSaveDir, `${saveName}${ext}`);
-            if (fs.existsSync(filePath)) return filePath;
+        if (!fs.existsSync(fullSaveDir)) {
+            return null;
         }
 
-        // Try to find any recently created file
+        const directPath = path.join(fullSaveDir, saveName);
+        if (fs.existsSync(directPath)) {
+            return directPath;
+        }
+
+        const preferredExtOrder = [`.${outputFormat}`, '.mp4', '.mkv', '.ts'];
+        const uniqueExtOrder = Array.from(new Set(preferredExtOrder));
+
+        for (const ext of uniqueExtOrder) {
+            const filePath = path.join(fullSaveDir, `${saveNameRaw}${ext}`);
+            if (fs.existsSync(filePath)) {
+                return filePath;
+            }
+        }
+
         try {
             const files = fs.readdirSync(fullSaveDir)
-                .filter(f => extensions.some(ext => f.endsWith(ext)))
-                .map(f => ({
-                    name: f,
-                    path: path.join(fullSaveDir, f),
-                    mtime: fs.statSync(path.join(fullSaveDir, f)).mtimeMs,
-                }))
+                .filter((f) => uniqueExtOrder.some((ext) => f.toLowerCase().endsWith(ext)))
+                .map((f) => {
+                    const filePath = path.join(fullSaveDir, f);
+                    return {
+                        name: f,
+                        path: filePath,
+                        mtime: fs.statSync(filePath).mtimeMs,
+                    };
+                })
                 .sort((a, b) => b.mtime - a.mtime);
 
-            if (files.length > 0 && Date.now() - files[0].mtime < 60000) {
+            if (files.length > 0 && Date.now() - files[0].mtime < 60_000) {
                 return files[0].path;
             }
-        } catch { /* ignore */ }
+        } catch {
+            // ignore
+        }
 
         return null;
+    }
+
+    private guessMimeType(filePath: string): string {
+        if (filePath.toLowerCase().endsWith('.mkv')) return 'video/x-matroska';
+        if (filePath.toLowerCase().endsWith('.ts')) return 'video/mp2t';
+        return 'video/mp4';
+    }
+
+    private async resolveFfprobePath(): Promise<string> {
+        const ffmpegPath = await resolveFfmpegPath();
+        if (ffmpegPath === 'ffmpeg') {
+            return 'ffprobe';
+        }
+
+        const candidate = ffmpegPath.replace(/ffmpeg(\.exe)?$/i, (_m, ext) => `ffprobe${ext || ''}`);
+        if (fs.existsSync(candidate)) {
+            return candidate;
+        }
+
+        return 'ffprobe';
+    }
+
+    private async getMediaMetadata(filePath: string): Promise<{ duration: number | null; resolution: string | null; mimeType: string }> {
+        const ffprobePath = await this.resolveFfprobePath();
+        const result = spawnSync(
+            ffprobePath,
+            ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height:format=duration', '-of', 'json', filePath],
+            { encoding: 'utf-8', timeout: 10_000, windowsHide: true }
+        );
+
+        if (result.status !== 0 || !result.stdout) {
+            return {
+                duration: null,
+                resolution: null,
+                mimeType: this.guessMimeType(filePath),
+            };
+        }
+
+        try {
+            const parsed = JSON.parse(result.stdout);
+            const stream = parsed?.streams?.[0];
+            const width = Number(stream?.width || 0);
+            const height = Number(stream?.height || 0);
+            const durationRaw = parsed?.format?.duration;
+            const duration = durationRaw ? Math.round(Number(durationRaw)) : null;
+
+            return {
+                duration: Number.isFinite(duration || 0) ? duration : null,
+                resolution: width > 0 && height > 0 ? `${width}x${height}` : null,
+                mimeType: this.guessMimeType(filePath),
+            };
+        } catch {
+            return {
+                duration: null,
+                resolution: null,
+                mimeType: this.guessMimeType(filePath),
+            };
+        }
+    }
+
+    private async cleanupTaskTempDir(taskId: string): Promise<void> {
+        const shouldCleanup = (await getSetting('storage.cleanup_temp_files')) !== 'false';
+        if (!shouldCleanup) {
+            return;
+        }
+
+        const tempRoot = await getSetting('storage.temp_dir') || './data/tmp';
+        const taskTempDir = this.getTaskTempDir(taskId, tempRoot);
+        if (fs.existsSync(taskTempDir)) {
+            fs.rmSync(taskTempDir, { recursive: true, force: true });
+        }
     }
 }
 

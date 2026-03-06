@@ -1,15 +1,26 @@
 import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import prisma from '../db.js';
+import prisma, { getSetting } from '../db.js';
 
 const router = Router();
+
+function isSubPath(baseDir: string, targetPath: string): boolean {
+    const relative = path.relative(baseDir, targetPath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+async function ensureFilePathAllowed(filePath: string): Promise<boolean> {
+    const saveRoot = path.resolve(await getSetting('storage.save_dir') || './data/videos');
+    const resolved = path.resolve(filePath);
+    return isSubPath(saveRoot, resolved);
+}
 
 // GET /api/files - List media files
 router.get('/', async (req: Request, res: Response) => {
     try {
-        const page = Math.max(1, parseInt(req.query.page as string) || 1);
-        const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+        const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+        const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string, 10) || 20));
         const search = req.query.search as string;
 
         const where: any = {};
@@ -27,8 +38,7 @@ router.get('/', async (req: Request, res: Response) => {
             prisma.mediaFile.count({ where }),
         ]);
 
-        // Convert BigInt to string for JSON serialization
-        const serializedFiles = files.map(f => ({
+        const serializedFiles = files.map((f) => ({
             ...f,
             fileSize: f.fileSize.toString(),
         }));
@@ -45,8 +55,13 @@ router.get('/', async (req: Request, res: Response) => {
 // GET /api/files/:id/stream - Stream video (supports Range requests)
 router.get('/:id/stream', async (req: Request, res: Response) => {
     try {
-        const file = await prisma.mediaFile.findUnique({ where: { id: req.params.id } });
+        const fileId = String(req.params.id);
+        const file = await prisma.mediaFile.findUnique({ where: { id: fileId } });
         if (!file) return res.status(404).json({ error: 'File not found' });
+
+        if (!(await ensureFilePathAllowed(file.filePath))) {
+            return res.status(403).json({ error: 'File path is not allowed' });
+        }
 
         if (!fs.existsSync(file.filePath)) {
             return res.status(404).json({ error: 'File not found on disk' });
@@ -85,8 +100,13 @@ router.get('/:id/stream', async (req: Request, res: Response) => {
 // GET /api/files/:id/download - Download file
 router.get('/:id/download', async (req: Request, res: Response) => {
     try {
-        const file = await prisma.mediaFile.findUnique({ where: { id: req.params.id } });
+        const fileId = String(req.params.id);
+        const file = await prisma.mediaFile.findUnique({ where: { id: fileId } });
         if (!file) return res.status(404).json({ error: 'File not found' });
+
+        if (!(await ensureFilePathAllowed(file.filePath))) {
+            return res.status(403).json({ error: 'File path is not allowed' });
+        }
 
         if (!fs.existsSync(file.filePath)) {
             return res.status(404).json({ error: 'File not found on disk' });
@@ -103,16 +123,19 @@ router.get('/:id/download', async (req: Request, res: Response) => {
 // DELETE /api/files/:id - Delete file
 router.delete('/:id', async (req: Request, res: Response) => {
     try {
-        const file = await prisma.mediaFile.findUnique({ where: { id: req.params.id } });
+        const fileId = String(req.params.id);
+        const file = await prisma.mediaFile.findUnique({ where: { id: fileId } });
         if (!file) return res.status(404).json({ error: 'File not found' });
 
-        // Delete from disk
+        if (!(await ensureFilePathAllowed(file.filePath))) {
+            return res.status(403).json({ error: 'File path is not allowed' });
+        }
+
         if (fs.existsSync(file.filePath)) {
             fs.unlinkSync(file.filePath);
         }
 
-        // Delete from database
-        await prisma.mediaFile.delete({ where: { id: req.params.id } });
+        await prisma.mediaFile.delete({ where: { id: fileId } });
 
         res.json({ success: true });
     } catch (err: any) {

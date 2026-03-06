@@ -18,7 +18,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "setup:engine": "node scripts/download-engine.js",
+    "setup:engine": "tsx scripts/setup-engine.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

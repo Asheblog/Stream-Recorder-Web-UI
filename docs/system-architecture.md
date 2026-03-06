@@ -532,7 +532,7 @@ npm run dev
     "build": "npm run build:frontend && npm run build:backend",
     "build:frontend": "vite build",
     "build:backend": "nest build",
-    "setup:engine": "node scripts/download-engine.js",
+    "setup:engine": "tsx scripts/setup-engine.ts",
     "start": "node dist/main.js"
   }
 }
@@ -582,100 +582,46 @@ services:
 
 系统启动时和手动触发时，自动检测当前操作系统和架构，并下载对应的 N_m3u8DL-RE 可执行文件。
 
-### 11.1 支持平台
+### 11.1 支持平台与目标资产
 
-| 平台 | 架构 | 下载文件名 |
-|---|---|---|
-| Linux | x64 | `N_m3u8DL-RE_linux-x64` |
-| Linux | arm64 | `N_m3u8DL-RE_linux-arm64` |
-| macOS | x64 | `N_m3u8DL-RE_osx-x64` |
-| macOS | arm64 | `N_m3u8DL-RE_osx-arm64` |
-| Windows | x64 | `N_m3u8DL-RE_win-x64.exe` |
+| 平台 | 架构 | 运行时类型 | 资产 token | 包格式 |
+|---|---|---|---|---|
+| Linux | x64 | glibc | `linux-x64` | `.tar.gz` |
+| Linux | x64 | musl | `linux-musl-x64` | `.tar.gz` |
+| Linux | arm64 | glibc | `linux-arm64` | `.tar.gz` |
+| Linux | arm64 | musl | `linux-musl-arm64` | `.tar.gz` |
+| macOS | x64 | - | `osx-x64` | `.tar.gz` |
+| macOS | arm64 | - | `osx-arm64` | `.tar.gz` |
+| Windows | x64 | - | `win-x64` | `.zip` |
+| Windows | arm64 | - | `win-arm64` | `.zip` |
 
-### 11.2 下载脚本 `scripts/download-engine.js`
+### 11.2 下载入口 `scripts/setup-engine.ts`
 
-```javascript
-const os = require('os');
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
+- `npm run setup:engine`：检测本地是否已有可执行文件，存在且可执行则直接复用
+- `npm run setup:engine -- --force`：强制重装最新 release
+- 实际安装逻辑统一在 `src/server/engine/engine-installer.ts`，CLI 与后端自动安装共用
 
-const RELEASE_API = 'https://api.github.com/repos/nilaoda/N_m3u8DL-RE/releases/latest';
-
-function getPlatformKey() {
-  const platform = os.platform();   // 'linux' | 'darwin' | 'win32'
-  const arch = os.arch();           // 'x64' | 'arm64'
-
-  const map = {
-    'linux-x64':   'N_m3u8DL-RE_linux-x64',
-    'linux-arm64': 'N_m3u8DL-RE_linux-arm64',
-    'darwin-x64':  'N_m3u8DL-RE_osx-x64',
-    'darwin-arm64':'N_m3u8DL-RE_osx-arm64',
-    'win32-x64':   'N_m3u8DL-RE_win-x64.exe',
-  };
-
-  const key = `${platform}-${arch}`;
-  if (!map[key]) throw new Error(`Unsupported platform: ${key}`);
-  return map[key];
-}
-
-async function downloadEngine() {
-  const fileName = getPlatformKey();
-  const binDir = path.join(__dirname, '..', 'bin');
-  const dest = path.join(binDir, os.platform() === 'win32' ? 'N_m3u8DL-RE.exe' : 'N_m3u8DL-RE');
-
-  // Skip if already exists
-  if (fs.existsSync(dest)) {
-    console.log(`✓ Engine already exists: ${dest}`);
-    return;
-  }
-
-  fs.mkdirSync(binDir, { recursive: true });
-  console.log(`⬇ Downloading ${fileName} ...`);
-
-  // Fetch latest release URL from GitHub API
-  // ... (simplified — use node-fetch or https to download)
-  const url = `https://github.com/nilaoda/N_m3u8DL-RE/releases/latest/download/${fileName}`;
-
-  // Download with redirect following
-  await downloadFile(url, dest);
-  if (os.platform() !== 'win32') {
-    fs.chmodSync(dest, 0o755);
-  }
-  console.log(`✓ Engine downloaded to: ${dest}`);
-}
-
-function downloadFile(url, dest) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(dest);
-    https.get(url, { headers: { 'User-Agent': 'stream-recorder' } }, (res) => {
-      if (res.statusCode === 302 || res.statusCode === 301) {
-        return downloadFile(res.headers.location, dest).then(resolve).catch(reject);
-      }
-      res.pipe(file);
-      file.on('finish', () => { file.close(); resolve(); });
-    }).on('error', reject);
-  });
-}
-
-downloadEngine().catch(err => {
-  console.error('✗ Engine download failed:', err.message);
-  process.exit(1);
+```typescript
+// scripts/setup-engine.ts (simplified)
+const target = resolveReleaseTarget(); // OS/arch/musl -> asset token
+const result = await installEngineForCurrentPlatform({
+  binDir: path.join(process.cwd(), 'bin'),
 });
+console.log(result.assetName, result.binaryPath);
 ```
 
 ### 11.3 运行时引擎路径解析
 
 后端启动时按以下优先级查找引擎：
 
-1. **系统设置表** `SystemSetting` 中的 `enginePath` 配置
+1. **系统设置表** `SystemSetting` 中的 `engine.n_m3u8dl_path` 配置
 2. **项目 `bin/` 目录** 中通过 `setup:engine` 下载的本地副本
 3. **系统 PATH** 中全局安装的 `N_m3u8DL-RE`
 
 ```typescript
 // engine/engine-resolver.ts
 function resolveEnginePath(): string {
-  const configPath = settingService.get('enginePath');
+  const configPath = settingService.get('engine.n_m3u8dl_path');
   if (configPath && fs.existsSync(configPath)) return configPath;
 
   const localBin = path.join(process.cwd(), 'bin',

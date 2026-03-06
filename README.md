@@ -61,11 +61,37 @@ npm run build
 npm start
 ```
 
-## Docker 部署
+## Docker 部署（本地构建）
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
+
+## GitHub Actions 自动构建镜像
+
+仓库内置工作流：`.github/workflows/docker-image.yml`
+
+- `push main` / `push tag(v*)`：构建并推送多架构镜像（`linux/amd64`、`linux/arm64`）到 GHCR
+- `pull_request`：仅构建校验镜像，不推送
+- 构建阶段会执行镜像内校验：`N_m3u8DL-RE --version` 与 `ffmpeg -version`
+
+默认镜像地址：`ghcr.io/asheblog/stream-recorder-web-ui:latest`
+
+## 1Panel 部署（根目录编排脚本）
+
+直接使用根目录 `docker-compose.1panel.yml`。
+
+建议在 1Panel 中配置以下变量（确保数据持久化到宿主机目录）：
+
+- `APP_PORT=3000`
+- `APP_DATA_DIR=/opt/1panel/apps/stream-recorder/data`
+- `APP_VIDEOS_DIR=/opt/1panel/apps/stream-recorder/videos`
+- `TZ=Asia/Shanghai`
+
+其中：
+
+- `APP_DATA_DIR` 持久化数据库、日志、临时文件
+- `APP_VIDEOS_DIR` 持久化视频输出目录（可在系统设置中将保存目录设置为 `/data/videos`）
 
 ## Windows / WSL 支持
 
